@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,9 +9,11 @@ import {
   Image,
   SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { authService } from '../../services/api/auth-service';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -19,9 +21,46 @@ export default function LoginScreen() {
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    router.replace('/(tabs)');
+  const handleLogin = async () => {
+    // Form Validation
+    if (!emailOrPhone.trim()) {
+      Alert.alert('Validation Error ⚠️', 'Please enter your email or phone number.');
+      return;
+    }
+    if (!password) {
+      Alert.alert('Validation Error ⚠️', 'Please enter your password.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Call backend API Gateway / PostgreSQL database
+      const response = await authService.login({
+        email: emailOrPhone.trim(),
+        password: password,
+      });
+
+      if (response.user) {
+        Alert.alert(
+          'Welcome Back! 🎉',
+          `Logged in successfully as ${response.user.firstName || response.user.email}!`,
+          [{ text: 'Continue to App', onPress: () => router.replace('/(tabs)') }]
+        );
+      } else {
+        router.replace('/(tabs)');
+      }
+    } catch (error: any) {
+      console.warn('[Login] Authentication failed:', error.message || error);
+      Alert.alert(
+        'Login Failed ⚠️',
+        error.message || 'Invalid email/phone or password. Please check your credentials and try again.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -118,10 +157,13 @@ export default function LoginScreen() {
           {/* Login Button */}
           <TouchableOpacity
             activeOpacity={0.88}
-            style={styles.loginButton}
+            style={[styles.loginButton, isLoading && { opacity: 0.7 }]}
             onPress={handleLogin}
+            disabled={isLoading}
           >
-            <Text style={styles.loginButtonText}>Login</Text>
+            <Text style={styles.loginButtonText}>
+              {isLoading ? 'Verifying Credentials...' : 'Login'}
+            </Text>
           </TouchableOpacity>
 
           {/* Divider */}

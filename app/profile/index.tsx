@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,29 +15,69 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
+import { authService } from '../../services/api/auth-service';
 
 export default function UserProfileScreen() {
   const router = useRouter();
 
-  // Profile Form States
-  const [fullName, setFullName] = useState('Nimal Perera');
-  const [email, setEmail] = useState('nimal.perera@gmail.com');
-  const [phone, setPhone] = useState('077 123 4567');
-  const [selectedLanguage, setSelectedLanguage] = useState<'English' | 'Sinhala' | 'Tamil'>('English');
+  const user = authService.getCurrentUser();
+
+  // Dynamic Profile Form States
+  const [fullName, setFullName] = useState(
+    user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : ''
+  );
+  const [email, setEmail] = useState(user.email || '');
+  const [phone, setPhone] = useState(user.phoneNumber || '');
+  const [nic, setNic] = useState(user.nicNumber || '');
+  const [city, setCity] = useState(user.city || '');
+  const [address, setAddress] = useState(user.address || '');
+  const [profilePicture, setProfilePicture] = useState(
+    user.profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=250&auto=format&fit=crop&q=80'
+  );
+  const [isLoading, setIsLoading] = useState(false);
 
   // Preferences Switches
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [smsAlertsEnabled, setSmsAlertsEnabled] = useState(true);
-  const [locationEnabled, setLocationEnabled] = useState(true);
 
-  const handleSaveProfile = () => {
-    Alert.alert('Profile Updated', 'Your profile details have been saved successfully!');
+  const handleSaveProfile = async () => {
+    setIsLoading(true);
+    try {
+      const nameParts = fullName.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      await authService.updateProfile({
+        id: user.id,
+        email: email.trim(),
+        firstName,
+        lastName,
+        phoneNumber: phone.trim(),
+        nicNumber: nic.trim(),
+        city: city.trim(),
+        address: address.trim(),
+        profilePicture: profilePicture,
+      });
+
+      Alert.alert('Profile Updated 🎉', 'Your profile details have been saved directly to the database!');
+    } catch (error: any) {
+      Alert.alert('Save Note', error.message || 'Updated local profile details.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of YAALU?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Log Out', style: 'destructive', onPress: () => router.replace('/auth/login') },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: () => {
+          authService.logout();
+          router.replace('/auth/login');
+        },
+      },
     ]);
   };
 
@@ -64,290 +104,188 @@ export default function UserProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Hero Card */}
-        <View style={styles.profileHeroCard}>
+        {/* User Hero Avatar Section */}
+        <View style={styles.avatarHeroContainer}>
           <View style={styles.avatarWrapper}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=250&auto=format&fit=crop&q=80',
-              }}
-              style={styles.avatarImage}
-            />
-            <TouchableOpacity activeOpacity={0.8} style={styles.cameraEditBtn}>
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
+            <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+            <TouchableOpacity activeOpacity={0.85} style={styles.cameraBadge}>
+              <Ionicons name="camera" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.heroName}>{fullName}</Text>
-          <Text style={styles.heroEmail}>{email}</Text>
-          <Text style={styles.heroPhone}>{phone}</Text>
+          <Text style={styles.userNameText}>{fullName || 'Customer Profile'}</Text>
+          <Text style={styles.userEmailSubtitle}>{email || 'Not logged in'}</Text>
 
-          <View style={styles.vipBadge}>
-            <Ionicons name="star" size={14} color="#D97706" style={{ marginRight: 4 }} />
-            <Text style={styles.vipBadgeText}>Gold Customer • 1,250 Pts</Text>
+          <View style={styles.membershipBadge}>
+            <Ionicons name="star" size={12} color="#D97706" style={{ marginRight: 4 }} />
+            <Text style={styles.membershipText}>YAALU MEMBER</Text>
           </View>
         </View>
 
-        {/* Quick Metrics Bar */}
-        <View style={styles.metricsRow}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.metricCard}
-            onPress={() => router.push('/(tabs)/orders')}
-          >
-            <Ionicons name="receipt-outline" size={22} color="#059669" />
-            <Text style={styles.metricVal}>14</Text>
-            <Text style={styles.metricLabel}>Total Orders</Text>
-          </TouchableOpacity>
+        {/* Quick Stats Grid */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statLabel}>Completed Orders</Text>
+          </View>
 
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.metricCard}
-            onPress={() => router.push('/register/add-address')}
-          >
-            <Ionicons name="location-outline" size={22} color="#2563EB" />
-            <Text style={styles.metricVal}>3</Text>
-            <Text style={styles.metricLabel}>Saved Places</Text>
-          </TouchableOpacity>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statLabel}>Saved Places</Text>
+          </View>
 
-          <View style={styles.metricCard}>
-            <Ionicons name="wallet-outline" size={22} color="#D97706" />
-            <Text style={styles.metricVal}>1,250</Text>
-            <Text style={styles.metricLabel}>Yaalu Points</Text>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statLabel}>Yaalu Points</Text>
           </View>
         </View>
 
-        {/* Personal Info Card */}
-        <View style={styles.cardContainer}>
-          <Text style={styles.cardHeaderTitle}>Personal Information</Text>
+        {/* Personal Details Form Section */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Personal Details</Text>
 
           {/* Full Name */}
-          <Text style={styles.inputLabel}>Full Name</Text>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="person-outline" size={18} color="#64748B" style={{ marginRight: 10 }} />
-            <TextInput
-              style={styles.textInput}
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Enter full name"
-              placeholderTextColor="#94A3B8"
-            />
-          </View>
-
-          {/* Email */}
-          <Text style={styles.inputLabel}>Email Address</Text>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="mail-outline" size={18} color="#64748B" style={{ marginRight: 10 }} />
-            <TextInput
-              style={styles.textInput}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              placeholder="Enter email"
-              placeholderTextColor="#94A3B8"
-            />
-          </View>
-
-          {/* Phone */}
-          <Text style={styles.inputLabel}>Phone Number</Text>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="call-outline" size={18} color="#64748B" style={{ marginRight: 10 }} />
-            <TextInput
-              style={styles.textInput}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              placeholder="Enter phone number"
-              placeholderTextColor="#94A3B8"
-            />
-          </View>
-
-          {/* Preferred Language */}
-          <Text style={styles.inputLabel}>Preferred Language</Text>
-          <View style={styles.languageChipsRow}>
-            {(['English', 'Sinhala', 'Tamil'] as const).map((lang) => {
-              const isActive = selectedLanguage === lang;
-              return (
-                <TouchableOpacity
-                  key={lang}
-                  activeOpacity={0.8}
-                  style={[styles.langChip, isActive && styles.langChipActive]}
-                  onPress={() => setSelectedLanguage(lang)}
-                >
-                  <Text style={[styles.langText, isActive && styles.langTextActive]}>
-                    {lang === 'Sinhala' ? 'සිංහල' : lang === 'Tamil' ? 'தமிழ்' : 'English'}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Saved Addresses Card */}
-        <View style={styles.cardContainer}>
-          <View style={styles.cardTitleHeaderRow}>
-            <Text style={styles.cardHeaderTitle}>Saved Addresses</Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => router.push('/register/add-address')}
-            >
-              <Text style={styles.addLinkText}>+ Add New</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Address Item 1 */}
-          <View style={styles.addressItemRow}>
-            <View style={styles.addressIconCircle}>
-              <Ionicons name="home-outline" size={18} color="#059669" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.addressTypeTitle}>Home</Text>
-                <View style={styles.defaultPill}>
-                  <Text style={styles.defaultPillText}>DEFAULT</Text>
-                </View>
-              </View>
-              <Text style={styles.addressBody}>123, Flower Road, Colombo 07</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Full Name</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="person-outline" size={18} color="#64748B" style={styles.fieldIcon} />
+              <TextInput
+                style={styles.textInput}
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder="Enter full name"
+                placeholderTextColor="#94A3B8"
+              />
             </View>
           </View>
 
-          <View style={styles.divider} />
-
-          {/* Address Item 2 */}
-          <View style={styles.addressItemRow}>
-            <View style={styles.addressIconCircle}>
-              <Ionicons name="briefcase-outline" size={18} color="#2563EB" />
+          {/* Email Address */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Email Address</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail-outline" size={18} color="#64748B" style={styles.fieldIcon} />
+              <TextInput
+                style={styles.textInput}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                placeholder="Enter email address"
+                placeholderTextColor="#94A3B8"
+              />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.addressTypeTitle}>Work</Text>
-              <Text style={styles.addressBody}>No. 45, Galle Road, Colombo 03</Text>
+          </View>
+
+          {/* Phone Number */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Phone Number</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="call-outline" size={18} color="#64748B" style={styles.fieldIcon} />
+              <TextInput
+                style={styles.textInput}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                placeholder="Enter phone number"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+          </View>
+
+          {/* NIC Number */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>NIC Number</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="card-outline" size={18} color="#64748B" style={styles.fieldIcon} />
+              <TextInput
+                style={styles.textInput}
+                value={nic}
+                onChangeText={setNic}
+                placeholder="Enter NIC number"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+          </View>
+
+          {/* City / Region */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>City / Region</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="business-outline" size={18} color="#64748B" style={styles.fieldIcon} />
+              <TextInput
+                style={styles.textInput}
+                value={city}
+                onChangeText={setCity}
+                placeholder="Enter city"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+          </View>
+
+          {/* Street Address */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Street Address</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="home-outline" size={18} color="#64748B" style={styles.fieldIcon} />
+              <TextInput
+                style={styles.textInput}
+                value={address}
+                onChangeText={setAddress}
+                placeholder="Enter street address"
+                placeholderTextColor="#94A3B8"
+              />
             </View>
           </View>
         </View>
 
-        {/* Payment Methods Card */}
-        <View style={styles.cardContainer}>
-          <View style={styles.cardTitleHeaderRow}>
-            <Text style={styles.cardHeaderTitle}>Payment Methods</Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => router.push('/checkout/add-card')}
-            >
-              <Text style={styles.addLinkText}>+ Add Card</Text>
-            </TouchableOpacity>
-          </View>
+        {/* App Preferences */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>App Preferences</Text>
 
-          <View style={styles.addressItemRow}>
-            <View style={styles.cardIconCircle}>
-              <Ionicons name="card-outline" size={18} color="#061138" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.addressTypeTitle}>Visa •••• 4242</Text>
-              <Text style={styles.addressBody}>Expires 08/28</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Preferences & Settings */}
-        <View style={styles.cardContainer}>
-          <Text style={styles.cardHeaderTitle}>App Settings</Text>
-
-          <View style={styles.settingSwitchRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>Push Notifications</Text>
-              <Text style={styles.settingSubtext}>Receive real-time order delivery updates</Text>
+          {/* Push Notifications */}
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextCol}>
+              <Text style={styles.switchTitle}>Push Notifications</Text>
+              <Text style={styles.switchSubtext}>Order status and delivery updates</Text>
             </View>
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#CBD5E1', true: '#059669' }}
-              thumbColor="#FFFFFF"
+              trackColor={{ false: '#CBD5E1', true: '#FDB813' }}
+              thumbColor={notificationsEnabled ? '#0A0E1A' : '#F1F5F9'}
             />
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.settingSwitchRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>SMS Order Alerts</Text>
-              <Text style={styles.settingSubtext}>Get SMS notifications for driver assignment</Text>
+          {/* SMS Alerts */}
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextCol}>
+              <Text style={styles.switchTitle}>SMS Order Alerts</Text>
+              <Text style={styles.switchSubtext}>Receive SMS for driver arrival</Text>
             </View>
             <Switch
               value={smsAlertsEnabled}
               onValueChange={setSmsAlertsEnabled}
-              trackColor={{ false: '#CBD5E1', true: '#059669' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.settingSwitchRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>GPS Location Services</Text>
-              <Text style={styles.settingSubtext}>Allow app to detect current store distance</Text>
-            </View>
-            <Switch
-              value={locationEnabled}
-              onValueChange={setLocationEnabled}
-              trackColor={{ false: '#CBD5E1', true: '#059669' }}
-              thumbColor="#FFFFFF"
+              trackColor={{ false: '#CBD5E1', true: '#FDB813' }}
+              thumbColor={smsAlertsEnabled ? '#0A0E1A' : '#F1F5F9'}
             />
           </View>
         </View>
 
-        {/* Legal & Support Links */}
-        <View style={styles.cardContainer}>
-          <Text style={styles.cardHeaderTitle}>Support & Legal</Text>
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.legalLinkRow}
-            onPress={() => router.push('/legal/terms')}
-          >
-            <Ionicons name="document-text-outline" size={20} color="#475569" style={{ marginRight: 12 }} />
-            <Text style={styles.legalLinkText}>Terms & Conditions</Text>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.legalLinkRow}
-            onPress={() => router.push('/legal/privacy')}
-          >
-            <Ionicons name="shield-checkmark-outline" size={20} color="#475569" style={{ marginRight: 12 }} />
-            <Text style={styles.legalLinkText}>Privacy Policy</Text>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.legalLinkRow}
-            onPress={() => router.push('/orders/status')}
-          >
-            <Ionicons name="help-circle-outline" size={20} color="#475569" style={{ marginRight: 12 }} />
-            <Text style={styles.legalLinkText}>Customer Support & FAQ</Text>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Action Buttons */}
-        <TouchableOpacity activeOpacity={0.88} style={styles.saveBtn} onPress={handleSaveProfile}>
-          <Ionicons name="save-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.saveBtnText}>Save Profile Changes</Text>
+        {/* Save & Logout Buttons */}
+        <TouchableOpacity
+          activeOpacity={0.88}
+          style={[styles.saveBtn, isLoading && { opacity: 0.7 }]}
+          onPress={handleSaveProfile}
+          disabled={isLoading}
+        >
+          <Text style={styles.saveBtnText}>{isLoading ? 'Saving Changes...' : 'Save Profile Changes'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.88} style={styles.logoutBtn} onPress={handleLogout}>
+        <TouchableOpacity activeOpacity={0.85} style={styles.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#DC2626" style={{ marginRight: 8 }} />
           <Text style={styles.logoutBtnText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Bottom Navigation Bar */}
       <CustomBottomTabBar activeTab="HOME" />
     </View>
   );
@@ -360,23 +298,21 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FDB813',
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 44,
-    paddingBottom: 14,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 4 : 12,
+    paddingBottom: 12,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 3,
   },
   headerBtn: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     color: '#0A0E1A',
   },
@@ -385,257 +321,167 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 100 : 80,
   },
-  profileHeroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
+  avatarHeroContainer: {
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 2,
+    marginBottom: 20,
   },
   avatarWrapper: {
     position: 'relative',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    borderColor: '#FDB813',
   },
-  cameraEditBtn: {
+  cameraBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#061138',
+    backgroundColor: '#0A0E1A',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
-  heroName: {
+  userNameText: {
     fontSize: 20,
-    fontWeight: '900',
-    color: '#0F172A',
-    marginBottom: 2,
+    fontWeight: '800',
+    color: '#0A0E1A',
   },
-  heroEmail: {
+  userEmailSubtitle: {
     fontSize: 13,
     color: '#64748B',
-    marginBottom: 1,
+    marginTop: 2,
+    marginBottom: 8,
   },
-  heroPhone: {
-    fontSize: 13,
-    color: '#64748B',
-    marginBottom: 10,
-  },
-  vipBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
+  membershipBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  vipBadgeText: {
-    fontSize: 12,
+  membershipText: {
+    fontSize: 11,
     fontWeight: '800',
     color: '#D97706',
+    letterSpacing: 0.5,
   },
-  metricsRow: {
+  statsRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  metricCard: {
+  statCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
+    padding: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  metricVal: {
-    fontSize: 18,
+  statNumber: {
+    fontSize: 20,
     fontWeight: '900',
-    color: '#0F172A',
-    marginTop: 4,
+    color: '#0A0E1A',
   },
-  metricLabel: {
+  statLabel: {
     fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
     fontWeight: '600',
+    color: '#64748B',
+    marginTop: 4,
+    textAlign: 'center',
   },
-  cardContainer: {
+  sectionCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 18,
+    padding: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 5,
+    shadowRadius: 4,
     elevation: 2,
   },
-  cardTitleHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  cardHeaderTitle: {
+  sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 12,
+    color: '#0A0E1A',
+    marginBottom: 14,
   },
-  addLinkText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#059669',
-    marginBottom: 12,
+  inputGroup: {
+    marginBottom: 14,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#475569',
     marginBottom: 6,
   },
-  inputWrapper: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 12,
     paddingHorizontal: 12,
-    height: 46,
-    marginBottom: 12,
+  },
+  fieldIcon: {
+    marginRight: 8,
   },
   textInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-  languageChipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 2,
-  },
-  langChip: {
-    flex: 1,
+    color: '#0A0E1A',
+    fontWeight: '600',
     paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
   },
-  langChipActive: {
-    backgroundColor: '#061138',
-  },
-  langText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  langTextActive: {
-    color: '#FFFFFF',
-  },
-  addressItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  addressIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  cardIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  addressTypeTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  defaultPill: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  defaultPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#166534',
-  },
-  addressBody: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 12,
-  },
-  settingSwitchRow: {
+  switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  settingTitle: {
+  switchTextCol: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  switchTitle: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '700',
+    color: '#0A0E1A',
   },
-  settingSubtext: {
-    fontSize: 12,
+  switchSubtext: {
+    fontSize: 11,
     color: '#64748B',
     marginTop: 2,
   },
-  legalLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  legalLinkText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#334155',
-  },
   saveBtn: {
-    backgroundColor: '#061138',
+    backgroundColor: '#0A0E1A',
     borderRadius: 16,
-    paddingVertical: 16,
-    flexDirection: 'row',
+    paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-    shadowColor: '#061138',
+    shadowColor: '#0A0E1A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
@@ -643,23 +489,23 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
   logoutBtn: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DC2626',
-    borderWidth: 2,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
     borderRadius: 16,
-    paddingVertical: 16,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   logoutBtnText: {
     color: '#DC2626',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
 });

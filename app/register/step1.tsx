@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,12 +6,15 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
+  Alert,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import YellowHeader from '../../components/YellowHeader';
+import { authService } from '../../services/api/auth-service';
 
 export default function RegistrationStep1Screen() {
   const router = useRouter();
@@ -20,8 +23,85 @@ export default function RegistrationStep1Screen() {
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [nicNumber, setNicNumber] = useState('');
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+
+  const handlePickImage = async () => {
+    Alert.alert(
+      'Profile Photo 📸',
+      'Select an option to add your profile photo:',
+      [
+        {
+          text: 'Take Photo (Camera)',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Needed', 'Camera permission is required to take a profile photo.');
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.7,
+            });
+            if (!result.canceled && result.assets && result.assets[0]) {
+              setProfilePicture(result.assets[0].uri);
+            }
+          },
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Needed', 'Photo gallery permission is required to select a photo.');
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.7,
+            });
+            if (!result.canceled && result.assets && result.assets[0]) {
+              setProfilePicture(result.assets[0].uri);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   const handleNext = () => {
+    // Form Data Validation
+    if (!firstName.trim()) {
+      Alert.alert('Validation Error', 'Please enter your First Name.');
+      return;
+    }
+    if (!lastName.trim()) {
+      Alert.alert('Validation Error', 'Please enter your Last Name.');
+      return;
+    }
+    if (!phoneNumber.trim() || phoneNumber.trim().length < 9) {
+      Alert.alert('Validation Error', 'Please enter a valid Sri Lankan Phone Number.');
+      return;
+    }
+    if (!nicNumber.trim() || nicNumber.trim().length < 9) {
+      Alert.alert('Validation Error', 'Please enter a valid NIC Number.');
+      return;
+    }
+
+    // Save temporary state
+    authService.setCurrentUser({
+      ...authService.getCurrentUser(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phoneNumber: phoneNumber.trim(),
+      nicNumber: nicNumber.trim(),
+      profilePicture: profilePicture || undefined,
+    });
+
     router.push('/register/step2');
   };
 
@@ -35,49 +115,66 @@ export default function RegistrationStep1Screen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Progress Bar Header */}
+        {/* Step Progress Tracker */}
         <View style={styles.progressContainer}>
-          <Text style={styles.stepText}>Step 1 of 2</Text>
+          <View style={styles.progressTextRow}>
+            <Text style={styles.stepText}>Step 1 of 2</Text>
+            <Text style={styles.stepTitle}>Personal Details</Text>
+          </View>
           <View style={styles.progressBarTrack}>
             <View style={styles.progressBarFill} />
           </View>
         </View>
 
-        {/* Main Card Container */}
+        {/* Dynamic Profile Picture Selection Section */}
+        <View style={styles.avatarSection}>
+          <TouchableOpacity activeOpacity={0.85} style={styles.avatarWrapper} onPress={handlePickImage}>
+            {profilePicture ? (
+              <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatarPlaceholderCircle}>
+                <Ionicons name="person" size={44} color="#94A3B8" />
+              </View>
+            )}
+            <View style={styles.cameraBadge}>
+              <Ionicons name="camera" size={18} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.avatarHintText}>
+            {profilePicture ? 'Tap to change profile photo' : 'Tap to add profile photo (Camera / Gallery)'}
+          </Text>
+        </View>
+
+        {/* Form Card Container */}
         <View style={styles.cardContainer}>
-          {/* Card Title */}
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="person-outline" size={24} color="#0B2384" style={styles.headerIcon} />
-            <Text style={styles.cardTitle}>Personal Information</Text>
+            <Ionicons name="person-circle-outline" size={26} color="#0B2384" style={styles.headerIcon} />
+            <Text style={styles.cardTitle}>Create Account</Text>
           </View>
 
-          {/* Profile Photo Uploader */}
-          <View style={styles.photoUploadSection}>
-            <TouchableOpacity activeOpacity={0.8} style={styles.dashedPhotoCircle}>
-              <Ionicons name="camera-outline" size={32} color="#1D4ED8" />
-              <Text style={styles.photoUploadLabel}>PROFILE PHOTO</Text>
-            </TouchableOpacity>
-            <Text style={styles.photoSubtext}>Clear face photo for your rider profile</Text>
-          </View>
-
-          {/* Names Row (First Name & Last Name) */}
-          <View style={styles.namesRow}>
-            <View style={styles.halfField}>
-              <Text style={styles.label}>First Name</Text>
+          {/* First Name Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>First Name *</Text>
+            <View style={styles.inputWithIconContainer}>
+              <Ionicons name="person-outline" size={20} color="#64748B" style={styles.inputLeftIcon} />
               <TextInput
-                style={styles.input}
-                placeholder="John"
+                style={styles.inputWithIcon}
+                placeholder="Enter First Name"
                 placeholderTextColor="#94A3B8"
                 value={firstName}
                 onChangeText={setFirstName}
               />
             </View>
+          </View>
 
-            <View style={styles.halfField}>
-              <Text style={styles.label}>Last Name</Text>
+          {/* Last Name Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Last Name *</Text>
+            <View style={styles.inputWithIconContainer}>
+              <Ionicons name="person-outline" size={20} color="#64748B" style={styles.inputLeftIcon} />
               <TextInput
-                style={styles.input}
-                placeholder="Doe"
+                style={styles.inputWithIcon}
+                placeholder="Enter Last Name"
                 placeholderTextColor="#94A3B8"
                 value={lastName}
                 onChangeText={setLastName}
@@ -87,32 +184,40 @@ export default function RegistrationStep1Screen() {
 
           {/* Phone Number Field */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Phone Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="+94 7X XXX XXXX"
-              placeholderTextColor="#94A3B8"
-              keyboardType="phone-pad"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-            />
+            <Text style={styles.label}>Phone Number *</Text>
+            <View style={styles.phoneInputRow}>
+              <View style={styles.countryCodeBadge}>
+                <Text style={styles.flagEmoji}>🇱🇰</Text>
+                <Text style={styles.countryCodeText}>+94</Text>
+              </View>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="77 123 4567"
+                placeholderTextColor="#94A3B8"
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+              />
+            </View>
           </View>
 
           {/* NIC Number Field */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>NIC Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="XXXXXXXXXV / 20XXXXXXXXXX"
-              placeholderTextColor="#94A3B8"
-              value={nicNumber}
-              onChangeText={setNicNumber}
-              autoCapitalize="characters"
-            />
+            <Text style={styles.label}>NIC Number *</Text>
+            <View style={styles.inputWithIconContainer}>
+              <Ionicons name="card-outline" size={20} color="#64748B" style={styles.inputLeftIcon} />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder="Enter National Identity Card No."
+                placeholderTextColor="#94A3B8"
+                value={nicNumber}
+                onChangeText={setNicNumber}
+              />
+            </View>
           </View>
         </View>
 
-        {/* Primary Action Button */}
+        {/* Continue Button */}
         <TouchableOpacity
           activeOpacity={0.88}
           style={styles.continueButton}
@@ -122,18 +227,13 @@ export default function RegistrationStep1Screen() {
           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
 
-        {/* Footer Legal Terms */}
-        <Text style={styles.footerLegalText}>
-          By continuing, you agree to Yalu's{' '}
-          <Text style={styles.legalLink} onPress={() => router.push('/legal/terms')}>
-            Terms of Service
-          </Text>{' '}
-          and{' '}
-          <Text style={styles.legalLink} onPress={() => router.push('/legal/privacy')}>
-            Privacy Policy
-          </Text>
-          .
-        </Text>
+        {/* Existing Account Footer Link */}
+        <View style={styles.loginLinkRow}>
+          <Text style={styles.alreadyHaveText}>Already have an account?</Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/auth/login')}>
+            <Text style={styles.loginLinkText}> Log In</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -142,7 +242,7 @@ export default function RegistrationStep1Screen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -152,11 +252,21 @@ const styles = StyleSheet.create({
   progressContainer: {
     marginBottom: 20,
   },
+  progressTextRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   stepText: {
     fontSize: 15,
     fontWeight: '700',
     color: '#0B2384',
-    marginBottom: 8,
+  },
+  stepTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#334155',
   },
   progressBarTrack: {
     height: 8,
@@ -170,13 +280,62 @@ const styles = StyleSheet.create({
     backgroundColor: '#061138',
     borderRadius: 4,
   },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  avatarWrapper: {
+    position: 'relative',
+  },
+  avatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    borderColor: '#FDB813',
+  },
+  avatarPlaceholderCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#061138',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  avatarHintText: {
+    fontSize: 13,
+    color: '#0B2384',
+    marginTop: 8,
+    fontWeight: '700',
+  },
   cardContainer: {
-    backgroundColor: '#F0F5FF',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#E0E7FF',
+    borderColor: '#E2E8F0',
     marginBottom: 24,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -191,58 +350,64 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0B2384',
   },
-  photoUploadSection: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  dashedPhotoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    borderColor: '#2563EB',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    marginBottom: 10,
-  },
-  photoUploadLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#1D4ED8',
-    marginTop: 4,
-    letterSpacing: 0.5,
-  },
-  photoSubtext: {
-    fontSize: 13,
-    color: '#475569',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  namesRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  halfField: {
-    flex: 1,
-  },
   fieldContainer: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: '#334155',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  input: {
-    backgroundColor: '#FFFFFF',
+  inputWithIconContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+  },
+  inputLeftIcon: {
+    marginRight: 10,
+  },
+  inputWithIcon: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#0F172A',
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  countryCodeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    marginRight: 10,
+  },
+  flagEmoji: {
+    fontSize: 18,
+    marginRight: 6,
+  },
+  countryCodeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  phoneInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 14,
     paddingVertical: 14,
     fontSize: 16,
     color: '#0F172A',
@@ -267,15 +432,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginRight: 8,
   },
-  footerLegalText: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
+  loginLinkRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  legalLink: {
-    color: '#0284C7',
-    textDecorationLine: 'underline',
-    fontWeight: '600',
+  alreadyHaveText: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  loginLinkText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0B2384',
   },
 });

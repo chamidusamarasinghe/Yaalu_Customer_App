@@ -94,7 +94,7 @@ export default function OrderReceiptScreen() {
 
             <View style={styles.partyCol}>
               <Text style={styles.partyHeader}>DELIVERED TO</Text>
-              <Text style={styles.partyName}>Nimal Perera</Text>
+              <Text style={styles.partyName}>Customer</Text>
               <Text style={styles.partySubtext}>12/3, Flower Road, Colombo 07</Text>
               <Text style={styles.partySubtext}>Driver: Dinesh Perera</Text>
             </View>

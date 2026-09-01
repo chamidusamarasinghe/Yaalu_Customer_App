@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
+import InteractiveMap from '../../components/InteractiveMap';
 
 interface VehicleOption {
   id: string;
@@ -35,34 +36,14 @@ const VEHICLES: VehicleOption[] = [
     iconName: 'bicycle',
   },
   {
-    id: 'car',
-    name: 'car',
+    id: 'flex',
+    name: 'Flex',
     capacity: 3,
     eta: 'In 1 min',
     price: 'LKR 1439.30',
     priceValue: 1439.3,
     rewardStars: 'Earn 14.4 stars',
     iconName: 'car-sport',
-  },
-  {
-    id: 'van',
-    name: 'van',
-    capacity: 3,
-    eta: 'In 1 min',
-    price: 'LKR 1891.55',
-    priceValue: 1891.55,
-    rewardStars: 'Earn 18.9 stars',
-    iconName: 'bus',
-  },
-  {
-    id: 'car-max',
-    name: 'car-max',
-    capacity: 3,
-    eta: 'In 1 min',
-    price: 'LKR 1891.55',
-    priceValue: 1891.55,
-    rewardStars: 'Earn 18.9 stars',
-    iconName: 'bus',
   },
   {
     id: 'mini',
@@ -101,28 +82,18 @@ export default function SelectVehicleScreen() {
 
       {/* Main Flex Layout */}
       <View style={styles.mainContent}>
-        {/* Upper Screen: Full Flex Route Map Area */}
+        {/* Upper Screen: Full Flex Real Interactive Route Map */}
         <View style={styles.mapContainer}>
-          <View style={styles.mapGraphic}>
-            {/* Route Path Line */}
-            <View style={styles.routePathLine} />
-
-            {/* Floating Pickup Location Badge */}
-            <View style={styles.pickupFloatingBadge}>
-              <View style={styles.blueBadgeCircle}>
-                <Text style={styles.badgeText}>Pickup</Text>
-              </View>
-              <Text style={styles.locationBadgeTitle}>Your Location</Text>
-            </View>
-
-            {/* Floating Drop Location Badge */}
-            <View style={styles.dropFloatingBadge}>
-              <View style={styles.orangeBadgeCircle}>
-                <Text style={styles.badgeText}>Drop</Text>
-              </View>
-              <Text style={styles.locationBadgeTitle}>Moratuwa</Text>
-            </View>
-          </View>
+          <InteractiveMap
+            height="100%"
+            center={{ latitude: 6.8413, longitude: 79.9654 }}
+            zoom={12}
+            markers={[
+              { id: '1', latitude: 6.8413, longitude: 79.9654, title: 'Your Location', type: 'pickup' },
+              { id: '2', latitude: 6.7106, longitude: 79.9074, title: 'Moratuwa', type: 'drop' },
+            ]}
+            showRoute={true}
+          />
         </View>
 
         {/* Lower Screen: Bottom-Anchored Vehicle Options & Booking Section */}
@@ -236,76 +207,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#CBD5E1',
     position: 'relative',
-  },
-  mapGraphic: {
-    flex: 1,
-    backgroundColor: '#94A3B8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  routePathLine: {
-    position: 'absolute',
-    width: '70%',
-    height: 6,
-    backgroundColor: '#061138',
-    borderRadius: 3,
-    transform: [{ rotate: '-15deg' }],
-  },
-  pickupFloatingBadge: {
-    position: 'absolute',
-    top: 30,
-    right: 30,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  blueBadgeCircle: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginRight: 6,
-  },
-  dropFloatingBadge: {
-    position: 'absolute',
-    bottom: 30,
-    left: 30,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  orangeBadgeCircle: {
-    backgroundColor: '#EA580C',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginRight: 6,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  locationBadgeTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
   },
   vehicleOptionsPanel: {
     backgroundColor: '#FFFFFF',

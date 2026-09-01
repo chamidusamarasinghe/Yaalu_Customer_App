@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,30 +6,94 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
+  Modal,
+  FlatList,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import YellowHeader from '../../components/YellowHeader';
+import InteractiveMap from '../../components/InteractiveMap';
+import { authService } from '../../services/api/auth-service';
+
+const CITIES_LIST = [
+  // Colombo District
+  { name: 'Colombo 01 (Fort)', district: 'Colombo' },
+  { name: 'Colombo 02 (Slave Island)', district: 'Colombo' },
+  { name: 'Colombo 03 (Kollupitiya)', district: 'Colombo' },
+  { name: 'Colombo 04 (Bambalapitiya)', district: 'Colombo' },
+  { name: 'Colombo 05 (Havelock)', district: 'Colombo' },
+  { name: 'Colombo 06 (Wellawatte)', district: 'Colombo' },
+  { name: 'Colombo 07 (Cinnamon Gardens)', district: 'Colombo' },
+  { name: 'Colombo 08 (Borella)', district: 'Colombo' },
+  { name: 'Dehiwala', district: 'Colombo' },
+  { name: 'Mount Lavinia', district: 'Colombo' },
+  { name: 'Maharagama', district: 'Colombo' },
+  { name: 'Kottawa', district: 'Colombo' },
+  { name: 'Nugegoda', district: 'Colombo' },
+  { name: 'Homagama', district: 'Colombo' },
+  { name: 'Malabe', district: 'Colombo' },
+  { name: 'Battaramulla', district: 'Colombo' },
+  { name: 'Kaduwela', district: 'Colombo' },
+  { name: 'Moratuwa', district: 'Colombo' },
+  { name: 'Piliyandala', district: 'Colombo' },
+  // Gampaha District
+  { name: 'Gampaha', district: 'Gampaha' },
+  { name: 'Negombo', district: 'Gampaha' },
+  { name: 'Ja-Ela', district: 'Gampaha' },
+  { name: 'Wattala', district: 'Gampaha' },
+  { name: 'Kelaniya', district: 'Gampaha' },
+  { name: 'Kiribathgoda', district: 'Gampaha' },
+  { name: 'Kadawatha', district: 'Gampaha' },
+  { name: 'Minuwangoda', district: 'Gampaha' },
+  { name: 'Nittambuwa', district: 'Gampaha' },
+  { name: 'Veyangoda', district: 'Gampaha' },
+  { name: 'Kandana', district: 'Gampaha' },
+];
 
 export default function RegistrationStep2Screen() {
   const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [city, setCity] = useState('');
-  const [selectedAddress, setSelectedAddress] = useState('');
+  const [address, setAddress] = useState('');
+  const [latitude, setLatitude] = useState<number>(6.9271);
+  const [longitude, setLongitude] = useState<number>(79.8612);
+
+  const [isCityModalVisible, setIsCityModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredCities = CITIES_LIST.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.district.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleContinueToVerification = () => {
+    if (!email.trim() || !email.includes('@')) {
+      Alert.alert('Validation Error', 'Please enter a valid Email Address.');
+      return;
+    }
+    if (!city) {
+      Alert.alert('Validation Error', 'Please select your City.');
+      return;
+    }
+
+    authService.setCurrentUser({
+      ...authService.getCurrentUser(),
+      email: email.trim(),
+      city: city,
+      address: address.trim() || `${city}, Sri Lanka`,
+      latitude: latitude,
+      longitude: longitude,
+    });
+
     router.push('/register/verify');
   };
 
   const handleBackToStep1 = () => {
     router.push('/register/step1');
-  };
-
-  const handleSelectLocation = () => {
-    router.push('/register/select-location');
   };
 
   return (
@@ -42,33 +106,30 @@ export default function RegistrationStep2Screen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Progress Header Row */}
         <View style={styles.progressContainer}>
           <View style={styles.progressTextRow}>
             <Text style={styles.stepText}>Step 2 of 2</Text>
-            <Text style={styles.stepTitle}>Contact & Address</Text>
+            <Text style={styles.stepTitle}>Contact & Location</Text>
           </View>
           <View style={styles.progressBarTrack}>
             <View style={styles.progressBarFill} />
           </View>
         </View>
 
-        {/* Card Container */}
         <View style={styles.cardContainer}>
-          {/* Card Header */}
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="card-outline" size={24} color="#0B2384" style={styles.headerIcon} />
-            <Text style={styles.cardTitle}>Your Information</Text>
+            <Ionicons name="location-outline" size={24} color="#0B2384" style={styles.headerIcon} />
+            <Text style={styles.cardTitle}>Location Information</Text>
           </View>
 
-          {/* Email Address Field */}
+          {/* Email Address */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>Email Address *</Text>
             <View style={styles.inputWithIconContainer}>
               <Ionicons name="mail-outline" size={20} color="#64748B" style={styles.inputLeftIcon} />
               <TextInput
                 style={styles.inputWithIcon}
-                placeholder="eg : rider@yalu.com"
+                placeholder="eg : user@example.com"
                 placeholderTextColor="#94A3B8"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -78,48 +139,74 @@ export default function RegistrationStep2Screen() {
             </View>
           </View>
 
-          {/* City / Region Field */}
+          {/* City / Region Selection */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>City / Region</Text>
+            <Text style={styles.label}>City / Region *</Text>
             <TouchableOpacity
               activeOpacity={0.8}
-              style={styles.dropdownInputContainer}
-              onPress={() => {}}
+              style={[styles.dropdownInputContainer, city ? styles.dropdownSelectedBorder : null]}
+              onPress={() => setIsCityModalVisible(true)}
             >
               <View style={styles.dropdownLeftRow}>
-                <Ionicons name="business-outline" size={20} color="#64748B" style={styles.inputLeftIcon} />
+                <Ionicons
+                  name="business-outline"
+                  size={20}
+                  color={city ? '#061138' : '#64748B'}
+                  style={styles.inputLeftIcon}
+                />
                 <Text style={city ? styles.dropdownTextSelected : styles.dropdownTextPlaceholder}>
-                  {city || 'Select your city'}
+                  {city || 'Select your city (Colombo / Gampaha)'}
                 </Text>
               </View>
               <Ionicons name="chevron-down" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
 
-          {/* Select Your Location Trigger */}
+          {/* Street Address Field */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Select Your Location</Text>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.locationButtonBox}
-              onPress={handleSelectLocation}
-            >
-              <Ionicons name="location-sharp" size={24} color="#000000" />
-            </TouchableOpacity>
+            <Text style={styles.label}>Street Address Details</Text>
+            <View style={styles.inputWithIconContainer}>
+              <Ionicons name="home-outline" size={20} color="#64748B" style={styles.inputLeftIcon} />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder="No. 123, Flower Road, Colombo 07"
+                placeholderTextColor="#94A3B8"
+                value={address}
+                onChangeText={setAddress}
+              />
+            </View>
+          </View>
+
+          {/* Interactive Leaflet Map Location Picker */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Tap Map to Select Location Pin</Text>
+            <View style={styles.mapBorderBox}>
+              <InteractiveMap
+                height={200}
+                center={{ latitude: latitude, longitude: longitude }}
+                interactivePicker={true}
+                onLocationSelect={(lat, lng) => {
+                  setLatitude(lat);
+                  setLongitude(lng);
+                  setAddress(`Selected Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+                }}
+              />
+            </View>
+            <Text style={styles.mapHintText}>
+              📍 Selected Pin: {latitude.toFixed(4)}, {longitude.toFixed(4)}
+            </Text>
           </View>
         </View>
 
-        {/* Primary Continue Button */}
         <TouchableOpacity
           activeOpacity={0.88}
           style={styles.continueButton}
           onPress={handleContinueToVerification}
         >
-          <Text style={styles.continueButtonText}>continue to Verification</Text>
+          <Text style={styles.continueButtonText}>Continue to Verification</Text>
           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
 
-        {/* Secondary Back Button */}
         <TouchableOpacity
           activeOpacity={0.8}
           style={styles.backButtonOutline}
@@ -127,12 +214,84 @@ export default function RegistrationStep2Screen() {
         >
           <Text style={styles.backButtonOutlineText}>Back to Personal Details</Text>
         </TouchableOpacity>
-
-        {/* Watermark Illustration Graphic */}
-        <View style={styles.watermarkContainer}>
-          <Ionicons name="bus-outline" size={100} color="#E2E8F0" />
-        </View>
       </ScrollView>
+
+      {/* Searchable City Modal */}
+      <Modal
+        visible={isCityModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsCityModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Your City</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setIsCityModalVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={24} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSearchBox}>
+              <Ionicons name="search" size={20} color="#64748B" style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search city in Colombo or Gampaha..."
+                placeholderTextColor="#94A3B8"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery ? (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <FlatList
+              data={filteredCities}
+              keyExtractor={(item) => item.name}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => {
+                const isSelected = city === item.name;
+                return (
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    style={[styles.cityListItem, isSelected && styles.cityListItemSelected]}
+                    onPress={() => {
+                      setCity(item.name);
+                      setIsCityModalVisible(false);
+                      setSearchQuery('');
+                    }}
+                  >
+                    <View style={styles.cityTextRow}>
+                      <Ionicons
+                        name="location-outline"
+                        size={18}
+                        color={isSelected ? '#061138' : '#64748B'}
+                        style={{ marginRight: 10 }}
+                      />
+                      <View>
+                        <Text style={[styles.cityNameText, isSelected && styles.cityNameTextSelected]}>
+                          {item.name}
+                        </Text>
+                        <Text style={styles.districtBadgeText}>{item.district} District</Text>
+                      </View>
+                    </View>
+                    {isSelected ? (
+                      <Ionicons name="checkmark-circle" size={22} color="#061138" />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -242,29 +401,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
+  dropdownSelectedBorder: {
+    borderColor: '#061138',
+    borderWidth: 1.5,
+    backgroundColor: '#FFFFFF',
+  },
   dropdownLeftRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   dropdownTextPlaceholder: {
-    fontSize: 16,
-    color: '#0F172A',
-    fontWeight: '600',
+    fontSize: 15,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   dropdownTextSelected: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#0F172A',
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  locationButtonBox: {
-    width: 64,
-    height: 52,
-    borderRadius: 14,
+  mapBorderBox: {
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  mapHintText: {
+    fontSize: 12,
+    color: '#0B2384',
+    marginTop: 6,
+    fontWeight: '700',
   },
   continueButton: {
     backgroundColor: '#061138',
@@ -301,9 +468,77 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  watermarkContainer: {
-    alignItems: 'flex-end',
-    marginTop: 20,
-    opacity: 0.7,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#0F172A',
+  },
+  cityListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  cityListItemSelected: {
+    backgroundColor: '#FEF3C7',
+  },
+  cityTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cityNameText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  cityNameTextSelected: {
+    color: '#061138',
+    fontWeight: '800',
+  },
+  districtBadgeText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
 });

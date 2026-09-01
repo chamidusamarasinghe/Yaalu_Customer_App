@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,12 +6,13 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import YellowHeader from '../../components/YellowHeader';
+import { authService } from '../../services/api/auth-service';
 
 export default function CreatePasswordScreen() {
   const router = useRouter();
@@ -20,60 +21,106 @@ export default function CreatePasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Dynamic Rule Validation
-  const isMinLength = password.length >= 8;
+  // Validation Rules
+  const isMinLength = password.length >= 6;
   const hasUppercase = /[A-Z]/.test(password);
   const hasLowercase = /[a-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
   const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
-  // Strength score out of 5
-  const strengthScore = [isMinLength, hasUppercase, hasLowercase, hasNumber, hasSpecialChar].filter(Boolean).length;
+  const getStrengthLevel = () => {
+    let score = 0;
+    if (isMinLength) score++;
+    if (hasUppercase) score++;
+    if (hasLowercase) score++;
+    if (hasNumber) score++;
+    if (hasSpecialChar) score++;
 
-  const getStrengthLabel = () => {
-    if (password.length === 0) return { label: 'Weak', color: '#EF4444', level: 1 };
-    if (strengthScore <= 2) return { label: 'Weak', color: '#EF4444', level: 1 };
-    if (strengthScore <= 4) return { label: 'Medium', color: '#F59E0B', level: 2 };
-    return { label: 'Strong', color: '#10B981', level: 3 };
+    if (score <= 2) return { level: 1, label: 'Weak', color: '#EF4444' };
+    if (score <= 4) return { level: 2, label: 'Medium', color: '#F59E0B' };
+    return { level: 3, label: 'Strong', color: '#10B981' };
   };
 
-  const strength = getStrengthLabel();
+  const strength = getStrengthLevel();
 
-  const handleCreatePassword = () => {
-    router.push('/auth/login');
+  const handleCreatePassword = async () => {
+    if (!isMinLength) {
+      Alert.alert('Validation Error', 'Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Validation Error', 'Passwords do not match. Please check again.');
+      return;
+    }
+
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser.email) {
+      Alert.alert('Registration Error', 'Missing registration details. Please restart registration.');
+      router.push('/register/step1');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await authService.register({
+        email: currentUser.email,
+        password: password,
+        firstName: currentUser.firstName,
+        lastName: currentUser.lastName,
+        phoneNumber: currentUser.phoneNumber,
+        nicNumber: currentUser.nicNumber,
+        city: currentUser.city,
+        profilePicture: currentUser.profilePicture,
+        address: currentUser.address,
+        latitude: currentUser.latitude,
+        longitude: currentUser.longitude,
+      });
+
+      Alert.alert(
+        'Registration Successful 🎉',
+        'Your account has been created! Welcome to Yaalu.',
+        [{ text: 'Go to Home', onPress: () => router.push('/(tabs)') }]
+      );
+    } catch (error: any) {
+      Alert.alert('Registration Failed', error.message || 'Unable to register user account.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
-      <YellowHeader showLogo />
+      <YellowHeader />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Lock Icon Badge */}
+        {/* Top Header Badge */}
         <View style={styles.iconContainer}>
           <View style={styles.iconBadge}>
             <Ionicons name="lock-closed" size={32} color="#059669" />
           </View>
         </View>
 
-        {/* Header Title & Subtitle */}
-        <Text style={styles.title}>Create Your Password</Text>
+        <Text style={styles.title}>Create Password</Text>
         <Text style={styles.subtitle}>
-          For your security, please create a strong password that you don't use on other platforms.
+          Set a secure password for your Yaalu Customer Account
         </Text>
 
-        {/* Password Field */}
+        {/* New Password Field */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>New Password *</Text>
           <View style={styles.inputBox}>
             <TextInput
               style={styles.input}
-              placeholder="Enter your password"
+              placeholder="Enter secure password"
               placeholderTextColor="#94A3B8"
               secureTextEntry={!showPassword}
               value={password}
@@ -123,7 +170,7 @@ export default function CreatePasswordScreen() {
 
         {/* Rules Checklist */}
         <View style={styles.rulesContainer}>
-          <Text style={styles.rulesTitle}>Password must contain:</Text>
+          <Text style={styles.rulesTitle}>Password Requirements:</Text>
 
           <View style={styles.ruleItem}>
             <Ionicons
@@ -132,7 +179,7 @@ export default function CreatePasswordScreen() {
               color={isMinLength ? '#10B981' : '#CBD5E1'}
             />
             <Text style={[styles.ruleText, isMinLength && styles.ruleTextActive]}>
-              At least 8 characters
+              At least 6 characters
             </Text>
           </View>
 
@@ -149,17 +196,6 @@ export default function CreatePasswordScreen() {
 
           <View style={styles.ruleItem}>
             <Ionicons
-              name={hasLowercase ? 'checkmark-circle' : 'ellipse-outline'}
-              size={18}
-              color={hasLowercase ? '#10B981' : '#CBD5E1'}
-            />
-            <Text style={[styles.ruleText, hasLowercase && styles.ruleTextActive]}>
-              At least one lowercase letter (a-z)
-            </Text>
-          </View>
-
-          <View style={styles.ruleItem}>
-            <Ionicons
               name={hasNumber ? 'checkmark-circle' : 'ellipse-outline'}
               size={18}
               color={hasNumber ? '#10B981' : '#CBD5E1'}
@@ -168,22 +204,11 @@ export default function CreatePasswordScreen() {
               At least one number (0-9)
             </Text>
           </View>
-
-          <View style={styles.ruleItem}>
-            <Ionicons
-              name={hasSpecialChar ? 'checkmark-circle' : 'ellipse-outline'}
-              size={18}
-              color={hasSpecialChar ? '#10B981' : '#CBD5E1'}
-            />
-            <Text style={[styles.ruleText, hasSpecialChar && styles.ruleTextActive]}>
-              At least one special character (!@#$%^&*)
-            </Text>
-          </View>
         </View>
 
         {/* Confirm Password Field */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Confirm Password</Text>
+          <Text style={styles.label}>Confirm Password *</Text>
           <View style={styles.inputBox}>
             <TextInput
               style={styles.input}
@@ -207,13 +232,16 @@ export default function CreatePasswordScreen() {
           </View>
         </View>
 
-        {/* Action Button */}
+        {/* Create Password Button */}
         <TouchableOpacity
           activeOpacity={0.88}
-          style={styles.createButton}
+          style={[styles.createButton, isLoading && { opacity: 0.7 }]}
           onPress={handleCreatePassword}
+          disabled={isLoading}
         >
-          <Text style={styles.createButtonText}>Create Password</Text>
+          <Text style={styles.createButtonText}>
+            {isLoading ? 'Creating Account...' : 'Complete Registration'}
+          </Text>
         </TouchableOpacity>
 
         {/* Footer Legal Terms */}

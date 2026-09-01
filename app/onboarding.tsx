@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -62,11 +62,11 @@ export default function OnboardingScreen() {
   };
 
   const handleSkip = () => {
-    router.push('/register/step1');
+    router.push('/auth/login');
   };
 
   const handleGetStarted = () => {
-    router.push('/register/step1');
+    router.push('/auth/login');
   };
 
   const renderSlide = ({ item }: { item: OnboardingSlide }) => {

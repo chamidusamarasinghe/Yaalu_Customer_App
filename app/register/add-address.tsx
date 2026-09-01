@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,13 +6,12 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Image,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import YellowHeader from '../../components/YellowHeader';
+import InteractiveMap from '../../components/InteractiveMap';
 
 type AddressCategory = 'Home' | 'Work' | 'Other';
 
@@ -38,12 +37,16 @@ export default function AddAddressScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Map Location Preview Card */}
+        {/* Real Interactive Leaflet OpenStreetMap View */}
         <View style={styles.mapCardWrapper}>
-          <Image
-            source={require('../../assets/images/map_preview.png')}
-            style={styles.mapPreviewImage}
-            resizeMode="cover"
+          <InteractiveMap
+            height={180}
+            center={{ latitude: 6.8413, longitude: 79.9654 }}
+            zoom={14}
+            markers={[
+              { id: 'addr', latitude: 6.8413, longitude: 79.9654, title: 'Pin Address Location', type: 'pickup' },
+            ]}
+            showRoute={false}
           />
         </View>
 
@@ -71,7 +74,6 @@ export default function AddAddressScreen() {
 
         {/* Form Input Cards */}
         <View style={styles.formContainer}>
-          {/* House / Flat / Block No */}
           <View style={styles.inputCard}>
             <Text style={styles.inputLabel}>House / Flat / Block No. *</Text>
             <TextInput
@@ -83,7 +85,6 @@ export default function AddAddressScreen() {
             />
           </View>
 
-          {/* Street Name / Area */}
           <View style={styles.inputCard}>
             <Text style={styles.inputLabel}>Street Name / Area *</Text>
             <TextInput
@@ -95,7 +96,6 @@ export default function AddAddressScreen() {
             />
           </View>
 
-          {/* Landmark */}
           <View style={styles.inputCard}>
             <Text style={styles.inputLabel}>Landmark (Optional)</Text>
             <TextInput
@@ -144,10 +144,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
-  },
-  mapPreviewImage: {
-    width: '100%',
-    height: '100%',
   },
   categorySection: {
     marginBottom: 20,

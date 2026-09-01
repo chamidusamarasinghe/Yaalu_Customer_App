@@ -147,7 +147,7 @@ export default function OrderDetailsScreen() {
               <Ionicons name="location-outline" size={20} color="#059669" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addressName}>Nimal Perera</Text>
+              <Text style={styles.addressName}>Customer</Text>
               <Text style={styles.addressSubtext}>12/3, Flower Road, Colombo 07</Text>
               <Text style={styles.addressSubtext}>077 123 4567</Text>
             </View>

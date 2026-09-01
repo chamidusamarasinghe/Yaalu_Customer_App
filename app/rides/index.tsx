@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,24 +12,24 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
+import InteractiveMap from '../../components/InteractiveMap';
 
-export default function RideDestinationSearchScreen() {
+export default function RideDestinationScreen() {
   const router = useRouter();
 
-  const [tripType, setTripType] = useState<'One way' | 'Return trip'>('One way');
-  const [pickupText, setPickupText] = useState('Your Location');
-  const [dropText, setDropText] = useState('');
+  const [tripType, setTripType] = useState<'oneWay' | 'return'>('oneWay');
+  const [pickupLocation, setPickupLocation] = useState('Your Location');
+  const [dropLocation, setDropLocation] = useState('Moratuwa');
 
   const handleSelectDestination = (destinationName: string) => {
-    setDropText(destinationName);
-    router.push('/rides/confirm-pickup' as any);
+    setDropLocation(destinationName);
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
-      {/* Yellow Top Bar */}
+      {/* Top Header Bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -44,85 +44,83 @@ export default function RideDestinationSearchScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Map Simulation Container */}
+        {/* Real Interactive Leaflet OpenStreetMap Container */}
         <View style={styles.mapContainer}>
-          <View style={styles.mapGraphicBackground}>
-            <View style={styles.roadLineHorizontal} />
-            <View style={styles.roadLineVertical} />
+          <InteractiveMap
+            height={360}
+            center={{ latitude: 6.8413, longitude: 79.9654 }}
+            zoom={12}
+            markers={[
+              { id: '1', latitude: 6.8413, longitude: 79.9654, title: pickupLocation, type: 'pickup' },
+              { id: '2', latitude: 6.7106, longitude: 79.9074, title: dropLocation, type: 'drop' },
+            ]}
+            showRoute={true}
+          />
 
-            {/* Blue Directional User Marker */}
-            <View style={styles.userMarkerPulseCircle}>
-              <View style={styles.userMarkerDirectionCircle}>
-                <Ionicons name="body" size={20} color="#FFFFFF" />
-              </View>
-            </View>
+          {/* Floating Action Buttons */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.mapBackFloatingBtn}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={22} color="#061138" />
+          </TouchableOpacity>
 
-            {/* Floating Top Back/Recenter Buttons */}
-            <TouchableOpacity activeOpacity={0.8} style={styles.mapBackFloatingBtn} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={20} color="#061138" />
-            </TouchableOpacity>
-
-            <TouchableOpacity activeOpacity={0.8} style={styles.mapRecenterBtn}>
-              <Ionicons name="navigate" size={20} color="#061138" />
-            </TouchableOpacity>
-
-            {/* Floating "Later" scheduled trip badge */}
-            <View style={styles.laterFloatingBadge}>
-              <Ionicons name="time-outline" size={16} color="#061138" style={{ marginRight: 4 }} />
-              <Text style={styles.laterBadgeText}>Later</Text>
-            </View>
-          </View>
+          <TouchableOpacity activeOpacity={0.85} style={styles.laterFloatingBadge}>
+            <Ionicons name="time-outline" size={16} color="#061138" style={{ marginRight: 4 }} />
+            <Text style={styles.laterBadgeText}>Later</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Ride Options Card Container */}
+        {/* Lower Screen: Destination & Trip Options Card */}
         <View style={styles.searchCardContainer}>
-          {/* Trip Type Selector (One way vs Return trip) */}
+          {/* Trip Selector (One way / Return trip) */}
           <View style={styles.tripTypeRow}>
             <TouchableOpacity
               activeOpacity={0.8}
-              style={[styles.tripTypeChip, tripType === 'One way' && styles.tripTypeChipActive]}
-              onPress={() => setTripType('One way')}
+              style={[styles.tripTypeChip, tripType === 'oneWay' && styles.tripTypeChipActive]}
+              onPress={() => setTripType('oneWay')}
             >
-              <View style={[styles.radioCircle, tripType === 'One way' && styles.radioCircleActive]}>
-                {tripType === 'One way' && <View style={styles.radioDot} />}
+              <View style={[styles.radioCircle, tripType === 'oneWay' && styles.radioCircleActive]}>
+                {tripType === 'oneWay' && <View style={styles.radioDot} />}
               </View>
-              <Text style={[styles.tripTypeText, tripType === 'One way' && styles.tripTypeTextActive]}>
+              <Text style={[styles.tripTypeText, tripType === 'oneWay' && styles.tripTypeTextActive]}>
                 One way
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               activeOpacity={0.8}
-              style={[styles.tripTypeChip, tripType === 'Return trip' && styles.tripTypeChipActive]}
-              onPress={() => setTripType('Return trip')}
+              style={[styles.tripTypeChip, tripType === 'return' && styles.tripTypeChipActive]}
+              onPress={() => setTripType('return')}
             >
-              <View style={[styles.radioCircle, tripType === 'Return trip' && styles.radioCircleActive]}>
-                {tripType === 'Return trip' && <View style={styles.radioDot} />}
+              <View style={[styles.radioCircle, tripType === 'return' && styles.radioCircleActive]}>
+                {tripType === 'return' && <View style={styles.radioDot} />}
               </View>
-              <Text style={[styles.tripTypeText, tripType === 'Return trip' && styles.tripTypeTextActive]}>
+              <Text style={[styles.tripTypeText, tripType === 'return' && styles.tripTypeTextActive]}>
                 Return trip*
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Pickup and Drop Address Block */}
+          {/* Pickup & Drop Inputs Block */}
           <View style={styles.locationsBlock}>
             {/* Pickup Row */}
             <View style={styles.locationInputRow}>
               <Text style={styles.locationLabelPickup}>PICKUP</Text>
               <TextInput
                 style={styles.locationInput}
-                value={pickupText}
-                onChangeText={setPickupText}
+                value={pickupLocation}
+                onChangeText={setPickupLocation}
                 placeholder="Enter pickup location"
                 placeholderTextColor="#94A3B8"
               />
               <TouchableOpacity activeOpacity={0.7}>
-                <Ionicons name="heart-outline" size={20} color="#64748B" />
+                <Ionicons name="locate-outline" size={20} color="#2563EB" />
               </TouchableOpacity>
             </View>
 
-            {/* Vertical Dotted Connector Line */}
+            {/* Dotted Line Connector */}
             <View style={styles.dottedConnectorContainer}>
               <View style={styles.dottedLine} />
             </View>
@@ -132,11 +130,10 @@ export default function RideDestinationSearchScreen() {
               <Text style={styles.locationLabelDrop}>DROP</Text>
               <TextInput
                 style={styles.locationInput}
-                value={dropText}
-                onChangeText={setDropText}
+                value={dropLocation}
+                onChangeText={setDropLocation}
                 placeholder="Where are you going?"
                 placeholderTextColor="#94A3B8"
-                onSubmitEditing={() => router.push('/rides/confirm-pickup' as any)}
               />
               <TouchableOpacity activeOpacity={0.7}>
                 <Ionicons name="add-outline" size={24} color="#061138" />
@@ -220,65 +217,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  mapGraphicBackground: {
-    flex: 1,
-    backgroundColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  roadLineHorizontal: {
-    position: 'absolute',
-    width: '100%',
-    height: 32,
-    backgroundColor: '#94A3B8',
-    top: 110,
-  },
-  roadLineVertical: {
-    position: 'absolute',
-    height: '100%',
-    width: 32,
-    backgroundColor: '#94A3B8',
-    left: '50%',
-    marginLeft: -16,
-  },
-  userMarkerPulseCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(37, 99, 235, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  userMarkerDirectionCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
   mapBackFloatingBtn: {
     position: 'absolute',
     top: 16,
     left: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  mapRecenterBtn: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
     width: 44,
     height: 44,
     borderRadius: 22,
