@@ -13,6 +13,8 @@ export interface UserProfile {
   address?: string;
   latitude?: number;
   longitude?: number;
+  isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
 }
 
 export interface RegisterUserPayload {
@@ -30,77 +32,85 @@ export interface RegisterUserPayload {
   role?: string;
 }
 
-export interface LoginUserPayload {
+export interface LoginPayload {
   email: string;
   password: string;
 }
 
 export interface AuthResponse {
+  user?: UserProfile;
   accessToken?: string;
-  user: UserProfile;
+  access_token?: string;
+  message?: string;
 }
 
-let currentUserSession: UserProfile = {};
-
-export const authService = {
-  getCurrentUser(): UserProfile {
-    return currentUserSession;
-  },
-
-  setCurrentUser(user: UserProfile) {
-    currentUserSession = { ...currentUserSession, ...user };
-  },
+class AuthService {
+  private currentUser: UserProfile = {};
+  private token: string | null = null;
 
   async register(payload: RegisterUserPayload): Promise<AuthResponse> {
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/register', payload);
-      if (response.user) {
-        this.setCurrentUser(response.user);
-      }
-      if (response.accessToken) {
-        apiClient.setToken(response.accessToken);
-      }
-      return response;
-    } catch (error: any) {
-      console.warn('[authService] Registration failed:', error.message || error);
-      throw error;
+    const data = await apiClient.post<AuthResponse>('/auth/register', payload);
+    if (data.accessToken || data.access_token) {
+      this.token = data.accessToken || data.access_token || null;
     }
-  },
+    if (data.user) {
+      this.currentUser = data.user;
+    }
+    return data;
+  }
 
-  async login(payload: LoginUserPayload): Promise<AuthResponse> {
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', payload);
-      if (response.user) {
-        this.setCurrentUser(response.user);
-      }
-      if (response.accessToken) {
-        apiClient.setToken(response.accessToken);
-      }
-      return response;
-    } catch (error: any) {
-      console.warn('[authService] Login failed:', error.message || error);
-      throw error;
+  async login(payload: LoginPayload): Promise<AuthResponse> {
+    const data = await apiClient.post<AuthResponse>('/auth/login', payload);
+    if (data.accessToken || data.access_token) {
+      this.token = data.accessToken || data.access_token || null;
     }
-  },
+    if (data.user) {
+      this.currentUser = data.user;
+    }
+    return data;
+  }
 
-  async updateProfile(payload: Partial<UserProfile>): Promise<UserProfile> {
-    try {
-      const response = await apiClient.patch<{ user: UserProfile }>('/auth/profile', payload);
-      if (response.user) {
-        this.setCurrentUser(response.user);
-        return response.user;
-      }
-      this.setCurrentUser(payload);
-      return this.getCurrentUser();
-    } catch (error: any) {
-      console.warn('[authService] Profile update note:', error.message || error);
-      this.setCurrentUser(payload);
-      return this.getCurrentUser();
+  async updateProfile(payload: Partial<UserProfile>): Promise<{ user?: UserProfile }> {
+    const mergedPayload = {
+      ...payload,
+      id: payload.id || this.currentUser?.id,
+      email: payload.email || this.currentUser?.email,
+    };
+    const data = await apiClient.patch<{ user?: UserProfile }>('/auth/profile', mergedPayload);
+    if (data.user) {
+      this.currentUser = { ...this.currentUser, ...data.user };
     }
-  },
+    return data;
+  }
+
+  async sendOtp(payload: { phoneNumber?: string; email?: string }): Promise<{ success: boolean; message: string; otp?: string }> {
+    return apiClient.post('/auth/send-otp', payload);
+  }
+
+  async verifyOtp(payload: { target: string; code: string }): Promise<{ verified: boolean; message: string }> {
+    return apiClient.post('/auth/verify-otp', payload);
+  }
+
+  getCurrentUser(): UserProfile {
+    return this.currentUser || {};
+  }
+
+  getUser(): UserProfile {
+    return this.currentUser || {};
+  }
+
+  setCurrentUser(user: UserProfile | null) {
+    this.currentUser = user || {};
+  }
+
+  getToken(): string | null {
+    return this.token;
+  }
 
   logout() {
-    currentUserSession = {};
-    apiClient.setToken(null);
-  },
-};
+    this.currentUser = {};
+    this.token = null;
+  }
+}
+
+export const authService = new AuthService();

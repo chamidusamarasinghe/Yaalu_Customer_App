@@ -7,47 +7,35 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
+  Alert,
   Modal,
   FlatList,
-  Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import YellowHeader from '../../components/YellowHeader';
-import InteractiveMap from '../../components/InteractiveMap';
 import { authService } from '../../services/api/auth-service';
 
 const CITIES_LIST = [
-  // Colombo District
   { name: 'Colombo 01 (Fort)', district: 'Colombo' },
-  { name: 'Colombo 02 (Slave Island)', district: 'Colombo' },
-  { name: 'Colombo 03 (Kollupitiya)', district: 'Colombo' },
+  { name: 'Colombo 03 (Colpetty)', district: 'Colombo' },
   { name: 'Colombo 04 (Bambalapitiya)', district: 'Colombo' },
-  { name: 'Colombo 05 (Havelock)', district: 'Colombo' },
-  { name: 'Colombo 06 (Wellawatte)', district: 'Colombo' },
+  { name: 'Colombo 05 (Havelock Town)', district: 'Colombo' },
   { name: 'Colombo 07 (Cinnamon Gardens)', district: 'Colombo' },
-  { name: 'Colombo 08 (Borella)', district: 'Colombo' },
   { name: 'Dehiwala', district: 'Colombo' },
   { name: 'Mount Lavinia', district: 'Colombo' },
+  { name: 'Nugegoda', district: 'Colombo' },
   { name: 'Maharagama', district: 'Colombo' },
   { name: 'Kottawa', district: 'Colombo' },
-  { name: 'Nugegoda', district: 'Colombo' },
-  { name: 'Homagama', district: 'Colombo' },
-  { name: 'Malabe', district: 'Colombo' },
-  { name: 'Battaramulla', district: 'Colombo' },
   { name: 'Kaduwela', district: 'Colombo' },
-  { name: 'Moratuwa', district: 'Colombo' },
-  { name: 'Piliyandala', district: 'Colombo' },
-  // Gampaha District
+  { name: 'Battaramulla', district: 'Colombo' },
   { name: 'Gampaha', district: 'Gampaha' },
   { name: 'Negombo', district: 'Gampaha' },
+  { name: 'Kadawatha', district: 'Gampaha' },
+  { name: 'Kiribathgoda', district: 'Gampaha' },
   { name: 'Ja-Ela', district: 'Gampaha' },
   { name: 'Wattala', district: 'Gampaha' },
-  { name: 'Kelaniya', district: 'Gampaha' },
-  { name: 'Kiribathgoda', district: 'Gampaha' },
-  { name: 'Kadawatha', district: 'Gampaha' },
-  { name: 'Minuwangoda', district: 'Gampaha' },
-  { name: 'Nittambuwa', district: 'Gampaha' },
   { name: 'Veyangoda', district: 'Gampaha' },
   { name: 'Kandana', district: 'Gampaha' },
 ];
@@ -55,11 +43,12 @@ const CITIES_LIST = [
 export default function RegistrationStep2Screen() {
   const router = useRouter();
 
-  const [email, setEmail] = useState('');
-  const [city, setCity] = useState('');
-  const [address, setAddress] = useState('');
-  const [latitude, setLatitude] = useState<number>(6.9271);
-  const [longitude, setLongitude] = useState<number>(79.8612);
+  const currentUser = authService.getUser();
+  const [email, setEmail] = useState(currentUser.email || '');
+  const [city, setCity] = useState(currentUser.city || '');
+  const [address, setAddress] = useState(currentUser.address || '');
+  const [latitude] = useState<number>(currentUser.latitude || 6.9271);
+  const [longitude] = useState<number>(currentUser.longitude || 79.8612);
 
   const [isCityModalVisible, setIsCityModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,16 +61,17 @@ export default function RegistrationStep2Screen() {
 
   const handleContinueToVerification = () => {
     if (!email.trim() || !email.includes('@')) {
-      Alert.alert('Validation Error', 'Please enter a valid Email Address.');
+      Alert.alert('Validation Error ⚠️', 'Please enter a valid Email Address.');
       return;
     }
     if (!city) {
-      Alert.alert('Validation Error', 'Please select your City.');
+      Alert.alert('Validation Error ⚠️', 'Please select your City.');
       return;
     }
 
+    // Save Step 2 state (Contact & Address)
     authService.setCurrentUser({
-      ...authService.getCurrentUser(),
+      ...authService.getUser(),
       email: email.trim(),
       city: city,
       address: address.trim() || `${city}, Sri Lanka`,
@@ -89,6 +79,7 @@ export default function RegistrationStep2Screen() {
       longitude: longitude,
     });
 
+    // Step 2 -> Step 3 (Verification Page)
     router.push('/register/verify');
   };
 
@@ -106,30 +97,32 @@ export default function RegistrationStep2Screen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Progress Bar Header */}
         <View style={styles.progressContainer}>
           <View style={styles.progressTextRow}>
-            <Text style={styles.stepText}>Step 2 of 2</Text>
-            <Text style={styles.stepTitle}>Contact & Location</Text>
+            <Text style={styles.stepText}>Step 2 of 3</Text>
+            <Text style={styles.stepTitle}>Contact & Address Location</Text>
           </View>
           <View style={styles.progressBarTrack}>
             <View style={styles.progressBarFill} />
           </View>
         </View>
 
+        {/* Contact & Location Details Card */}
         <View style={styles.cardContainer}>
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="location-outline" size={24} color="#0B2384" style={styles.headerIcon} />
-            <Text style={styles.cardTitle}>Location Information</Text>
+            <Ionicons name="location-outline" size={26} color="#0B2384" style={styles.headerIcon} />
+            <Text style={styles.cardTitle}>Contact & Delivery Address</Text>
           </View>
 
-          {/* Email Address */}
+          {/* Email Address Field */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Email Address *</Text>
             <View style={styles.inputWithIconContainer}>
               <Ionicons name="mail-outline" size={20} color="#64748B" style={styles.inputLeftIcon} />
               <TextInput
                 style={styles.inputWithIcon}
-                placeholder="eg : user@example.com"
+                placeholder="example@gmail.com"
                 placeholderTextColor="#94A3B8"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -139,12 +132,12 @@ export default function RegistrationStep2Screen() {
             </View>
           </View>
 
-          {/* City / Region Selection */}
+          {/* City Selection Dropdown */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>City / Region *</Text>
+            <Text style={styles.label}>City (Colombo & Gampaha Districts) *</Text>
             <TouchableOpacity
               activeOpacity={0.8}
-              style={[styles.dropdownInputContainer, city ? styles.dropdownSelectedBorder : null]}
+              style={[styles.dropdownInputContainer, city && styles.dropdownSelectedBorder]}
               onPress={() => setIsCityModalVisible(true)}
             >
               <View style={styles.dropdownLeftRow}>
@@ -155,21 +148,21 @@ export default function RegistrationStep2Screen() {
                   style={styles.inputLeftIcon}
                 />
                 <Text style={city ? styles.dropdownTextSelected : styles.dropdownTextPlaceholder}>
-                  {city || 'Select your city (Colombo / Gampaha)'}
+                  {city || 'Select your City...'}
                 </Text>
               </View>
               <Ionicons name="chevron-down" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
 
-          {/* Street Address Field */}
+          {/* Street Address / Landmark Field */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Street Address Details</Text>
+            <Text style={styles.label}>Street Address & Landmark</Text>
             <View style={styles.inputWithIconContainer}>
               <Ionicons name="home-outline" size={20} color="#64748B" style={styles.inputLeftIcon} />
               <TextInput
                 style={styles.inputWithIcon}
-                placeholder="No. 123, Flower Road, Colombo 07"
+                placeholder="House No, Street Name, Apartment"
                 placeholderTextColor="#94A3B8"
                 value={address}
                 onChangeText={setAddress}
@@ -177,46 +170,49 @@ export default function RegistrationStep2Screen() {
             </View>
           </View>
 
-          {/* Interactive Leaflet Map Location Picker */}
+          {/* Map Location Card Badge */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Tap Map to Select Location Pin</Text>
-            <View style={styles.mapBorderBox}>
-              <InteractiveMap
-                height={200}
-                center={{ latitude: latitude, longitude: longitude }}
-                interactivePicker={true}
-                onLocationSelect={(lat, lng) => {
-                  setLatitude(lat);
-                  setLongitude(lng);
-                  setAddress(`Selected Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
-                }}
+            <Text style={styles.label}>Delivery Pin Location</Text>
+            {Platform.OS === 'web' ? (
+              <iframe
+                title="OpenStreetMap Pin"
+                width="100%"
+                height="160"
+                style={{ border: 0, borderRadius: 14 }}
+                loading="lazy"
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${longitude - 0.01}%2C${latitude - 0.01}%2C${longitude + 0.01}%2C${latitude + 0.01}&layer=mapnik&marker=${latitude}%2C${longitude}`}
               />
-            </View>
-            <Text style={styles.mapHintText}>
-              📍 Selected Pin: {latitude.toFixed(4)}, {longitude.toFixed(4)}
-            </Text>
+            ) : (
+              <View style={styles.nativeLocationBadge}>
+                <Ionicons name="map" size={32} color="#0B2384" />
+                <Text style={styles.nativeLocationTitle}>{city || 'Selected Location'}</Text>
+                <Text style={styles.nativeLocationCoords}>Lat: {latitude.toFixed(4)} | Long: {longitude.toFixed(4)}</Text>
+              </View>
+            )}
           </View>
         </View>
 
+        {/* Continue Button */}
         <TouchableOpacity
           activeOpacity={0.88}
           style={styles.continueButton}
           onPress={handleContinueToVerification}
         >
-          <Text style={styles.continueButtonText}>Continue to Verification</Text>
+          <Text style={styles.continueButtonText}>Continue to Verification Page</Text>
           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
 
+        {/* Back Button */}
         <TouchableOpacity
           activeOpacity={0.8}
           style={styles.backButtonOutline}
           onPress={handleBackToStep1}
         >
-          <Text style={styles.backButtonOutlineText}>Back to Personal Details</Text>
+          <Text style={styles.backButtonOutlineText}>Back to Step 1</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Searchable City Modal */}
+      {/* Modal for City Selector */}
       <Modal
         visible={isCityModalVisible}
         animationType="slide"
@@ -332,7 +328,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressBarFill: {
-    width: '100%',
+    width: '66%',
     height: '100%',
     backgroundColor: '#061138',
     borderRadius: 4,
@@ -421,17 +417,25 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontWeight: '700',
   },
-  mapBorderBox: {
+  nativeLocationBadge: {
+    backgroundColor: '#F1F5F9',
     borderRadius: 16,
-    overflow: 'hidden',
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#CBD5E1',
   },
-  mapHintText: {
-    fontSize: 12,
-    color: '#0B2384',
-    marginTop: 6,
+  nativeLocationTitle: {
+    fontSize: 15,
     fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 6,
+  },
+  nativeLocationCoords: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
   continueButton: {
     backgroundColor: '#061138',
@@ -457,14 +461,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#2563EB',
+    borderColor: '#061138',
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
   },
   backButtonOutlineText: {
-    color: '#2563EB',
+    color: '#061138',
     fontSize: 16,
     fontWeight: '700',
   },

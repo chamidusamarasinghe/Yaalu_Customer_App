@@ -19,15 +19,16 @@ import { authService } from '../../services/api/auth-service';
 export default function RegistrationStep1Screen() {
   const router = useRouter();
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [nicNumber, setNicNumber] = useState('');
-  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const currentUser = authService.getUser();
+  const [firstName, setFirstName] = useState(currentUser.firstName || '');
+  const [lastName, setLastName] = useState(currentUser.lastName || '');
+  const [phoneNumber, setPhoneNumber] = useState(currentUser.phoneNumber || '');
+  const [nicNumber, setNicNumber] = useState(currentUser.nicNumber || '');
+  const [profilePicture, setProfilePicture] = useState<string | null>(currentUser.profilePicture || null);
 
   const handlePickImage = async () => {
     Alert.alert(
-      'Profile Photo 📸',
+      'Profile Photo 📷',
       'Select an option to add your profile photo:',
       [
         {
@@ -76,25 +77,25 @@ export default function RegistrationStep1Screen() {
   const handleNext = () => {
     // Form Data Validation
     if (!firstName.trim()) {
-      Alert.alert('Validation Error', 'Please enter your First Name.');
+      Alert.alert('Validation Error ⚠️', 'Please enter your First Name.');
       return;
     }
     if (!lastName.trim()) {
-      Alert.alert('Validation Error', 'Please enter your Last Name.');
+      Alert.alert('Validation Error ⚠️', 'Please enter your Last Name.');
       return;
     }
     if (!phoneNumber.trim() || phoneNumber.trim().length < 9) {
-      Alert.alert('Validation Error', 'Please enter a valid Sri Lankan Phone Number.');
+      Alert.alert('Validation Error ⚠️', 'Please enter a valid Sri Lankan Phone Number.');
       return;
     }
     if (!nicNumber.trim() || nicNumber.trim().length < 9) {
-      Alert.alert('Validation Error', 'Please enter a valid NIC Number.');
+      Alert.alert('Validation Error ⚠️', 'Please enter a valid NIC Number.');
       return;
     }
 
-    // Save temporary state
+    // Save Step 1 state
     authService.setCurrentUser({
-      ...authService.getCurrentUser(),
+      ...authService.getUser(),
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phoneNumber: phoneNumber.trim(),
@@ -102,45 +103,46 @@ export default function RegistrationStep1Screen() {
       profilePicture: profilePicture || undefined,
     });
 
+    // Step 1 -> Step 2 (Contact & Address Location Page)
     router.push('/register/step2');
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
-      <YellowHeader />
+      <YellowHeader showLogo />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Step Progress Tracker */}
+        {/* Progress Header */}
         <View style={styles.progressContainer}>
           <View style={styles.progressTextRow}>
-            <Text style={styles.stepText}>Step 1 of 2</Text>
-            <Text style={styles.stepTitle}>Personal Details</Text>
+            <Text style={styles.stepText}>Step 1 of 3</Text>
+            <Text style={styles.stepTitle}>Personal Details & Photo</Text>
           </View>
           <View style={styles.progressBarTrack}>
             <View style={styles.progressBarFill} />
           </View>
         </View>
 
-        {/* Dynamic Profile Picture Selection Section */}
+        {/* Profile Picture Camera / Gallery Picker */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity activeOpacity={0.85} style={styles.avatarWrapper} onPress={handlePickImage}>
+          <TouchableOpacity activeOpacity={0.8} onPress={handlePickImage} style={styles.avatarWrapper}>
             {profilePicture ? (
               <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholderCircle}>
-                <Ionicons name="person" size={44} color="#94A3B8" />
+                <Ionicons name="camera-outline" size={32} color="#0B2384" />
               </View>
             )}
             <View style={styles.cameraBadge}>
-              <Ionicons name="camera" size={18} color="#FFFFFF" />
+              <Ionicons name="camera" size={14} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.avatarHintText}>
+          <Text style={styles.avatarHintText} onPress={handlePickImage}>
             {profilePicture ? 'Tap to change profile photo' : 'Tap to add profile photo (Camera / Gallery)'}
           </Text>
         </View>
@@ -223,7 +225,7 @@ export default function RegistrationStep1Screen() {
           style={styles.continueButton}
           onPress={handleNext}
         >
-          <Text style={styles.continueButtonText}>Continue to Step 2</Text>
+          <Text style={styles.continueButtonText}>Continue to Contact & Address Page</Text>
           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
 
@@ -275,7 +277,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressBarFill: {
-    width: '50%',
+    width: '33%',
     height: '100%',
     backgroundColor: '#061138',
     borderRadius: 4,
