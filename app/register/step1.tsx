@@ -9,12 +9,14 @@ import {
   StatusBar,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import YellowHeader from '../../components/YellowHeader';
 import { authService } from '../../services/api/auth-service';
+import { uploadService } from '../../services/api/upload-service';
 
 export default function RegistrationStep1Screen() {
   const router = useRouter();
@@ -25,11 +27,30 @@ export default function RegistrationStep1Screen() {
   const [phoneNumber, setPhoneNumber] = useState(currentUser.phoneNumber || '');
   const [nicNumber, setNicNumber] = useState(currentUser.nicNumber || '');
   const [profilePicture, setProfilePicture] = useState<string | null>(currentUser.profilePicture || null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const processAndUploadPhoto = async (localUri: string) => {
+    setIsUploadingPhoto(true);
+    setProfilePicture(localUri);
+
+    try {
+      // Upload image to Cloudinary CDN
+      const res = await uploadService.uploadImage(localUri, 'yaalu/profiles');
+      if (res && res.url) {
+        setProfilePicture(res.url);
+        console.log('[Cloudinary Upload Success]:', res.url);
+      }
+    } catch (err: any) {
+      console.warn('[Cloudinary Upload Info]:', err?.message || err);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   const handlePickImage = async () => {
     Alert.alert(
       'Profile Photo 📷',
-      'Select an option to add your profile photo:',
+      'Select an option to add your profile photo (Uploaded to Cloudinary CDN):',
       [
         {
           text: 'Take Photo (Camera)',
@@ -44,9 +65,13 @@ export default function RegistrationStep1Screen() {
               allowsEditing: true,
               aspect: [1, 1],
               quality: 0.7,
+              base64: true,
             });
             if (!result.canceled && result.assets && result.assets[0]) {
-              setProfilePicture(result.assets[0].uri);
+              const uriOrBase64 = result.assets[0].base64
+                ? `data:image/jpeg;base64,${result.assets[0].base64}`
+                : result.assets[0].uri;
+              await processAndUploadPhoto(uriOrBase64);
             }
           },
         },
@@ -63,9 +88,13 @@ export default function RegistrationStep1Screen() {
               allowsEditing: true,
               aspect: [1, 1],
               quality: 0.7,
+              base64: true,
             });
             if (!result.canceled && result.assets && result.assets[0]) {
-              setProfilePicture(result.assets[0].uri);
+              const uriOrBase64 = result.assets[0].base64
+                ? `data:image/jpeg;base64,${result.assets[0].base64}`
+                : result.assets[0].uri;
+              await processAndUploadPhoto(uriOrBase64);
             }
           },
         },
@@ -93,7 +122,7 @@ export default function RegistrationStep1Screen() {
       return;
     }
 
-    // Save Step 1 state
+    // Save Step 1 state (including Cloudinary HTTPS photo URL)
     authService.setCurrentUser({
       ...authService.getUser(),
       firstName: firstName.trim(),
@@ -128,22 +157,30 @@ export default function RegistrationStep1Screen() {
           </View>
         </View>
 
-        {/* Profile Picture Camera / Gallery Picker */}
+        {/* Profile Picture Camera / Gallery Picker with Cloudinary Upload */}
         <View style={styles.avatarSection}>
           <TouchableOpacity activeOpacity={0.8} onPress={handlePickImage} style={styles.avatarWrapper}>
             {profilePicture ? (
               <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholderCircle}>
-                <Ionicons name="camera-outline" size={32} color="#0B2384" />
+                {isUploadingPhoto ? (
+                  <ActivityIndicator size="large" color="#0B2384" />
+                ) : (
+                  <Ionicons name="camera-outline" size={32} color="#0B2384" />
+                )}
               </View>
             )}
             <View style={styles.cameraBadge}>
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
+              <Ionicons name="cloud-upload" size={14} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
           <Text style={styles.avatarHintText} onPress={handlePickImage}>
-            {profilePicture ? 'Tap to change profile photo' : 'Tap to add profile photo (Camera / Gallery)'}
+            {isUploadingPhoto
+              ? 'Uploading to Cloudinary CDN...'
+              : profilePicture
+              ? 'Photo Uploaded to Cloudinary ☁️ (Tap to change)'
+              : 'Tap to add profile photo (Uploaded to Cloudinary CDN)'}
           </Text>
         </View>
 
@@ -325,6 +362,7 @@ const styles = StyleSheet.create({
     color: '#0B2384',
     marginTop: 8,
     fontWeight: '700',
+    textAlign: 'center',
   },
   cardContainer: {
     backgroundColor: '#FFFFFF',
