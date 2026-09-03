@@ -1,14 +1,14 @@
 ﻿import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
-// Firebase Web Configuration from Firebase Console
+// Firebase Web Configuration securely loaded from .env
 const firebaseConfig = {
-  apiKey: "AIzaSyCbDflGqNUfxZQUVhKIsOwXRbYn0p6o8qA",
-  authDomain: "yaalu-app-1e119.firebaseapp.com",
-  projectId: "yaalu-app-1e119",
-  storageBucket: "yaalu-app-1e119.firebasestorage.app",
-  messagingSenderId: "1063495888286",
-  appId: "1:1063495888286:web:263fbf5de795f790e1fa8f"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase App
