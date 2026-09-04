@@ -66,11 +66,17 @@ export default function CreatePasswordScreen() {
     setIsLoading(true);
 
     try {
+      const first = (currentUser.firstName || '').trim();
+      const last = (currentUser.lastName || '').trim();
+      const combinedFullName = [first, last].filter(Boolean).join(' ');
+
       await authService.register({
         email: currentUser.email,
         password: password,
         firstName: currentUser.firstName,
         lastName: currentUser.lastName,
+        fullName: combinedFullName,
+        name: combinedFullName,
         phoneNumber: currentUser.phoneNumber,
         nicNumber: currentUser.nicNumber,
         city: currentUser.city,

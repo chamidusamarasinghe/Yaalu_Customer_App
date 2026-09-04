@@ -1,21 +1,21 @@
-﻿import Constants from 'expo-constants';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 const getBaseUrl = () => {
-  if (Platform.OS === 'web') {
-    return 'http://localhost:3000';
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
   }
   const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip) {
-      return `http://${ip}:3000`;
+      return 'http://' + ip + ':3001';
     }
   }
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3000';
+    return 'http://10.0.2.2:3001';
   }
-  return 'http://localhost:3000';
+  return 'http://localhost:3001';
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -37,7 +37,7 @@ class ApiClient {
   }
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    const url = this.baseUrl + (endpoint.startsWith('/') ? endpoint : '/' + endpoint);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -46,23 +46,33 @@ class ApiClient {
     };
 
     if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+      headers['Authorization'] = 'Bearer ' + this.token;
     }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(errorData.message || `API Error: ${response.status}`);
+        throw new Error(errorData.message || 'API Error: ' + response.status);
       }
 
       return await response.json();
     } catch (error: any) {
-      console.warn(`[ApiClient] Fetch note for ${url}:`, error.message || error);
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn('[ApiClient] Timeout reaching ' + url);
+        throw new Error('Connection timeout reaching backend on port 3001.');
+      }
+      console.warn('[ApiClient] Fetch error for ' + url + ':', error.message || error);
       throw error;
     }
   }
