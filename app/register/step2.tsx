@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,10 +11,13 @@ import {
   Modal,
   FlatList,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import YellowHeader from '../../components/YellowHeader';
+import InteractiveMap from '../../components/InteractiveMap';
+import { reverseOSMGeocode } from '../../services/osmService';
 import { authService } from '../../services/api/auth-service';
 
 const CITIES_LIST = [
@@ -47,11 +50,26 @@ export default function RegistrationStep2Screen() {
   const [email, setEmail] = useState(currentUser.email || '');
   const [city, setCity] = useState(currentUser.city || '');
   const [address, setAddress] = useState(currentUser.address || '');
-  const [latitude] = useState<number>(currentUser.latitude || 6.9271);
-  const [longitude] = useState<number>(currentUser.longitude || 79.8612);
+  const [latitude, setLatitude] = useState<number>(currentUser.latitude || 6.9271);
+  const [longitude, setLongitude] = useState<number>(currentUser.longitude || 79.8612);
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   const [isCityModalVisible, setIsCityModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleMapLocationSelect = async (lat: number, lng: number) => {
+    setLatitude(lat);
+    setLongitude(lng);
+    setIsGeocoding(true);
+    const res = await reverseOSMGeocode(lat, lng);
+    setIsGeocoding(false);
+    if (res && res.display_name) {
+      setAddress(res.display_name);
+      if (res.address?.city || res.address?.town || res.address?.suburb) {
+        setCity(res.address.city || res.address.town || res.address.suburb || '');
+      }
+    }
+  };
 
   const filteredCities = CITIES_LIST.filter(
     (item) =>
@@ -170,25 +188,51 @@ export default function RegistrationStep2Screen() {
             </View>
           </View>
 
-          {/* Map Location Card Badge */}
+          {/* OpenStreetMap Interactive Selection */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Delivery Pin Location</Text>
-            {Platform.OS === 'web' ? (
-              <iframe
-                title="OpenStreetMap Pin"
-                width="100%"
-                height="160"
-                style={{ border: 0, borderRadius: 14 }}
-                loading="lazy"
-                src={`https://www.openstreetmap.org/export/embed.html?bbox=${longitude - 0.01}%2C${latitude - 0.01}%2C${longitude + 0.01}%2C${latitude + 0.01}&layer=mapnik&marker=${latitude}%2C${longitude}`}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={styles.label}>Select Your Location *</Text>
+              {isGeocoding && <ActivityIndicator size="small" color="#059669" />}
+            </View>
+
+            <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: '#CBD5E1', marginBottom: 10 }}>
+              <InteractiveMap
+                height={200}
+                center={{ latitude, longitude }}
+                zoom={14}
+                interactivePicker={true}
+                onLocationSelect={handleMapLocationSelect}
+                markers={[
+                  {
+                    id: 'register_loc',
+                    latitude,
+                    longitude,
+                    title: address || 'Your Selected Location',
+                    type: 'pickup',
+                  },
+                ]}
               />
-            ) : (
-              <View style={styles.nativeLocationBadge}>
-                <Ionicons name="map" size={32} color="#0B2384" />
-                <Text style={styles.nativeLocationTitle}>{city || 'Selected Location'}</Text>
-                <Text style={styles.nativeLocationCoords}>Lat: {latitude.toFixed(4)} | Long: {longitude.toFixed(4)}</Text>
-              </View>
-            )}
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#ECFDF5',
+                paddingVertical: 12,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: '#A7F3D0',
+              }}
+              onPress={() => router.push('/register/select-location')}
+            >
+              <Ionicons name="map-outline" size={18} color="#059669" style={{ marginRight: 6 }} />
+              <Text style={{ color: '#059669', fontWeight: '700', fontSize: 14 }}>
+                Open Full Screen Map Picker
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 

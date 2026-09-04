@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,11 +11,13 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
+import InteractiveMap from '../../components/InteractiveMap';
 
 const { width, height } = Dimensions.get('window');
 
 export default function ConfirmPickupScreen() {
   const router = useRouter();
+  const [pickupCoords, setPickupCoords] = useState({ latitude: 6.8413, longitude: 79.9654 });
 
   const handleConfirmPickup = () => {
     router.push('/rides/select-vehicle' as any);
@@ -36,43 +38,24 @@ export default function ConfirmPickupScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Full Screen Interactive Map Area */}
+      {/* Full Screen OpenStreetMap Area */}
       <View style={styles.mapArea}>
-        {/* Map Simulation Graphics */}
-        <View style={styles.mapBackground}>
-          <View style={styles.roadMainHorizontal} />
-          <View style={styles.roadMainVertical} />
-
-          {/* Location Compass Pin Marker */}
-          <View style={styles.compassMarkerWrapper}>
-            <View style={styles.compassPulseRing} />
-            <View style={styles.compassCenterCircle}>
-              <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-            </View>
-          </View>
-
-          {/* Floating Map Controls Left */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={styles.floatingMapBtnTopLeft}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={20} color="#061138" />
-          </TouchableOpacity>
-
-          <TouchableOpacity activeOpacity={0.85} style={styles.floatingMapBtnBottomLeft}>
-            <Ionicons name="arrow-back" size={20} color="#061138" />
-          </TouchableOpacity>
-
-          {/* Floating Map Controls Right */}
-          <TouchableOpacity activeOpacity={0.85} style={styles.floatingMapBtnTopRight}>
-            <Ionicons name="eye-outline" size={20} color="#061138" />
-          </TouchableOpacity>
-
-          <TouchableOpacity activeOpacity={0.85} style={styles.floatingMapBtnBottomRight}>
-            <Ionicons name="locate" size={20} color="#061138" />
-          </TouchableOpacity>
-        </View>
+        <InteractiveMap
+          height="100%"
+          center={pickupCoords}
+          zoom={15}
+          interactivePicker={true}
+          onLocationSelect={(lat, lng) => setPickupCoords({ latitude: lat, longitude: lng })}
+          markers={[
+            {
+              id: 'pickup_pin',
+              latitude: pickupCoords.latitude,
+              longitude: pickupCoords.longitude,
+              title: 'Pickup Location',
+              type: 'pickup',
+            },
+          ]}
+        />
 
         {/* Bottom Floating Card: Confirm Pickup */}
         <View style={styles.bottomCardContainer}>

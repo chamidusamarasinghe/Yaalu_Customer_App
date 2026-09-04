@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import InteractiveMap from '../../components/InteractiveMap';
 
 interface CheckoutItem {
   id: string;
@@ -69,21 +70,33 @@ export default function CheckoutScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Delivery Address Card */}
+        {/* Delivery Address Card with OpenStreetMap */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Delivery Address</Text>
-          <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.changeGreenText}>Change</Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/register/select-location')}>
+            <Text style={styles.changeGreenText}>Change Location</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.card}>
+          <View style={{ borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+            <InteractiveMap
+              height={130}
+              center={{ latitude: 6.908, longitude: 79.870 }}
+              zoom={15}
+              interactivePicker={false}
+              markers={[
+                { id: 'deliv', latitude: 6.908, longitude: 79.870, title: 'No. 42, Green Avenue', type: 'pickup' }
+              ]}
+            />
+          </View>
+
           <View style={styles.addressRow}>
             <View style={styles.pinCircle}>
               <Ionicons name="location" size={20} color="#059669" />
             </View>
             <View style={styles.addressCol}>
-              <Text style={styles.addressName}>Home</Text>
+              <Text style={styles.addressName}>Home (OpenStreetMap Verified)</Text>
               <Text style={styles.addressSub}>
                 No. 42, Green Avenue, Colombo 07, Sri Lanka
               </Text>

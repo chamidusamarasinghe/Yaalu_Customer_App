@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
+import InteractiveMap from '../../components/InteractiveMap';
 
 export default function TrackOrderScreen() {
   const router = useRouter();
@@ -51,40 +52,24 @@ export default function TrackOrderScreen() {
           </View>
         </View>
 
-        {/* Map Preview Card with Live Route Overlay */}
+        {/* Map Preview Card with Live OpenStreetMap Route */}
         <View style={styles.mapContainer}>
-          <Image
-            source={require('../../assets/images/map_bg.png')}
-            style={styles.mapImage}
-            resizeMode="cover"
+          <InteractiveMap
+            height={280}
+            center={{ latitude: 6.915, longitude: 79.865 }}
+            zoom={14}
+            showRoute={true}
+            interactivePicker={false}
+            markers={[
+              { id: 'driver', latitude: 6.920, longitude: 79.860, title: 'Dinesh (Driver)', type: 'driver' },
+              { id: 'dest', latitude: 6.908, longitude: 79.870, title: '123, Flower Road', type: 'drop' },
+            ]}
           />
 
-          {/* Overlay Map Route Simulation */}
-          <View style={styles.mapOverlay}>
-            {/* Scooter Marker Pin */}
-            <View style={styles.scooterMarkerPosition}>
-              <View style={styles.markerBubble}>
-                <Ionicons name="bicycle" size={18} color="#FFFFFF" />
-              </View>
-            </View>
-
-            {/* Destination Red Pin Marker */}
-            <View style={styles.destinationMarkerPosition}>
-              <Ionicons name="location-sharp" size={36} color="#EF4444" />
-            </View>
-
-            {/* Location Labels */}
-            <Text style={[styles.mapLabelText, { top: 40, right: 30 }]}>Thalawatugoda</Text>
-            <Text style={[styles.mapLabelText, { top: 90, left: 60 }]}>Havelock Town</Text>
-            <Text style={[styles.mapLabelText, { top: 100, right: 80 }]}>Nawala</Text>
-            <Text style={[styles.mapLabelText, { top: 160, left: 40 }]}>Rajagiriya</Text>
-            <Text style={[styles.mapLabelText, { bottom: 30, left: 70 }]}>Kotte</Text>
-
-            {/* Live Indicator Badge */}
-            <View style={styles.liveBadge}>
-              <View style={styles.liveGreenDot} />
-              <Text style={styles.liveText}>Live</Text>
-            </View>
+          {/* Live Indicator Badge */}
+          <View style={styles.liveBadge}>
+            <View style={styles.liveGreenDot} />
+            <Text style={styles.liveText}>OpenStreetMap Live</Text>
           </View>
         </View>
 

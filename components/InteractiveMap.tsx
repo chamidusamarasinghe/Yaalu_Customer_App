@@ -1,5 +1,5 @@
-﻿import React, { useRef } from 'react';
-import { StyleSheet, View, Text, Platform } from 'react-native';
+import React, { useRef } from 'react';
+import { StyleSheet, View, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 export interface MapMarker {
@@ -33,13 +33,14 @@ export default function InteractiveMap({
 }: InteractiveMapProps) {
   const webViewRef = useRef<WebView>(null);
 
-  const leafletHtml = `
+  // Pure OpenStreetMap implementation using OpenLayers (ol.js & ol.source.OSM)
+  const openStreetMapHtml = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css" />
+      <script src="https://cdn.jsdelivr.net/npm/ol@v9.2.4/dist/ol.js"></script>
       <style>
         body, html, #map {
           margin: 0;
@@ -60,6 +61,7 @@ export default function InteractiveMap({
           border: 2px solid #fdb813;
           text-align: center;
           white-space: nowrap;
+          cursor: pointer;
         }
         .custom-pin-drop {
           background-color: #ea580c;
@@ -72,86 +74,119 @@ export default function InteractiveMap({
           border: 2px solid white;
           text-align: center;
           white-space: nowrap;
+          cursor: pointer;
         }
         .custom-pin-driver {
           background-color: #fdb813;
           color: #061138;
-          padding: 6px;
-          border-radius: 50%;
+          padding: 6px 10px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 800;
           box-shadow: 0 4px 10px rgba(0,0,0,0.3);
           border: 2px solid #061138;
           text-align: center;
+          white-space: nowrap;
+        }
+        .ol-zoom {
+          top: auto !important;
+          bottom: 15px !important;
+          right: 15px !important;
+          left: auto !important;
+        }
+        .ol-zoom button {
+          background-color: #061138 !important;
+          color: #ffffff !important;
+          border-radius: 8px !important;
+          width: 32px !important;
+          height: 32px !important;
+          font-size: 16px !important;
+          margin: 2px !important;
+          border: none !important;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2) !important;
         }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
-        var map = L.map('map', {
-          zoomControl: false,
-          attributionControl: false
-        }).setView([${center.latitude}, ${center.longitude}], ${zoom});
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19
-        }).addTo(map);
-
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-        var pickerMarker = null;
-
-        function createPinIcon(title) {
-          return L.divIcon({
-            className: 'custom-pin-pickup',
-            html: '📍 ' + title,
-            iconSize: null
-          });
-        }
-
-        var initialLat = ${center.latitude};
         var initialLng = ${center.longitude};
+        var initialLat = ${center.latitude};
 
-        pickerMarker = L.marker([initialLat, initialLng], {
-          icon: createPinIcon('${markers[0]?.title || 'Selected Location'}'),
-          draggable: ${interactivePicker}
-        }).addTo(map);
+        // OpenStreetMap Layer via OpenLayers OSM Source
+        var osmLayer = new ol.layer.Tile({
+          source: new ol.source.OSM()
+        });
 
-        if (${interactivePicker}) {
-          map.on('click', function(e) {
-            var lat = e.latlng.lat;
-            var lng = e.latlng.lng;
-            pickerMarker.setLatLng([lat, lng]);
-            
-            var msg = JSON.stringify({ type: 'location_selected', lat: lat, lng: lng });
-            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-              window.ReactNativeWebView.postMessage(msg);
-            }
-            if (window.parent && window.parent.postMessage) {
-              window.parent.postMessage(msg, '*');
-            }
+        var mapView = new ol.View({
+          center: ol.proj.fromLonLat([initialLng, initialLat]),
+          zoom: ${zoom}
+        });
+
+        var map = new ol.Map({
+          target: 'map',
+          layers: [osmLayer],
+          view: mapView,
+          controls: ol.control.defaults.defaults({ attribution: false })
+        });
+
+        function notifyLocationSelected(lat, lng) {
+          var msg = JSON.stringify({ type: 'location_selected', lat: lat, lng: lng });
+          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+            window.ReactNativeWebView.postMessage(msg);
+          }
+          if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage(msg, '*');
+          }
+        }
+
+        // Render Markers using OpenLayers Overlays
+        var markersData = ${JSON.stringify(markers)};
+        markersData.forEach(function(m) {
+          var el = document.createElement('div');
+          var pinType = m.type || 'pickup';
+          el.className = pinType === 'drop' ? 'custom-pin-drop' : (pinType === 'driver' ? 'custom-pin-driver' : 'custom-pin-pickup');
+          el.innerHTML = (pinType === 'driver' ? '🛵 ' : '📍 ') + (m.title || 'Location');
+
+          var overlay = new ol.Overlay({
+            element: el,
+            positioning: 'bottom-center',
+            stopEvent: false,
+            position: ol.proj.fromLonLat([m.longitude, m.latitude])
           });
+          map.addOverlay(overlay);
+        });
 
-          pickerMarker.on('dragend', function(e) {
-            var position = pickerMarker.getLatLng();
-            var msg = JSON.stringify({ type: 'location_selected', lat: position.lat, lng: position.lng });
-            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-              window.ReactNativeWebView.postMessage(msg);
-            }
-            if (window.parent && window.parent.postMessage) {
-              window.parent.postMessage(msg, '*');
-            }
+        // Interactive Picker Logic
+        if (${interactivePicker}) {
+          map.on('click', function(evt) {
+            var lonlat = ol.proj.toLonLat(evt.coordinate);
+            var lng = lonlat[0];
+            var lat = lonlat[1];
+            notifyLocationSelected(lat, lng);
           });
         }
 
-        if (${showRoute} && ${markers.length} >= 2) {
-          var points = ${JSON.stringify(markers.map((m) => [m.latitude, m.longitude]))};
-          var polyline = L.polyline(points, {
-            color: '#061138',
-            weight: 5,
-            opacity: 0.8,
-            dashArray: '8, 8'
-          }).addTo(map);
-          map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+        // Render Route Line if enabled
+        if (${showRoute} && markersData.length >= 2) {
+          var coords = markersData.map(function(m) {
+            return ol.proj.fromLonLat([m.longitude, m.latitude]);
+          });
+          var routeFeature = new ol.Feature({
+            geometry: new ol.geom.LineString(coords)
+          });
+          var routeLayer = new ol.layer.Vector({
+            source: new ol.source.Vector({ features: [routeFeature] }),
+            style: new ol.style.Style({
+              stroke: new ol.style.Stroke({
+                color: '#061138',
+                width: 5,
+                lineDash: [8, 8]
+              })
+            })
+          });
+          map.addLayer(routeLayer);
+          map.getView().fit(routeFeature.getGeometry().getExtent(), { padding: [40, 40, 40, 40] });
         }
       </script>
     </body>
@@ -173,15 +208,15 @@ export default function InteractiveMap({
     <View style={[styles.container, { height: height as any }]}>
       {Platform.OS === 'web' ? (
         <iframe
-          srcDoc={leafletHtml}
+          srcDoc={openStreetMapHtml}
           style={{ width: '100%', height: '100%', border: 'none' }}
-          title="Interactive Map Location Picker"
+          title="OpenStreetMap Location Picker"
         />
       ) : (
         <WebView
           ref={webViewRef}
           originWhitelist={['*']}
-          source={{ html: leafletHtml }}
+          source={{ html: openStreetMapHtml }}
           style={styles.webview}
           javaScriptEnabled={true}
           domStorageEnabled={true}
@@ -203,3 +238,4 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
 });
+

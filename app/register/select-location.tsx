@@ -5,20 +5,55 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ImageBackground,
   SafeAreaView,
   StatusBar,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import YellowHeader from '../../components/YellowHeader';
+import InteractiveMap from '../../components/InteractiveMap';
+import { searchOSMLocation, reverseOSMGeocode } from '../../services/osmService';
 
 const { width } = Dimensions.get('window');
 
 export default function SelectLocationScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentCoords, setCurrentCoords] = useState({ latitude: 6.9271, longitude: 79.8612 });
+  const [mainAddress, setMainAddress] = useState('42, Galle Road, Bambalapitiya');
+  const [subAddress, setSubAddress] = useState('Colombo 00400, Western Province');
+  const [isGeocoding, setIsGeocoding] = useState(false);
+
+  const handleLocationSelect = async (lat: number, lng: number) => {
+    setCurrentCoords({ latitude: lat, longitude: lng });
+    setIsGeocoding(true);
+    const result = await reverseOSMGeocode(lat, lng);
+    setIsGeocoding(false);
+
+    if (result && result.display_name) {
+      const parts = result.display_name.split(',');
+      setMainAddress(parts.slice(0, 2).join(',').trim());
+      setSubAddress(parts.slice(2, 5).join(',').trim());
+    }
+  };
+
+  const handleSearchSubmit = async () => {
+    if (!searchQuery.trim()) return;
+    setIsGeocoding(true);
+    const results = await searchOSMLocation(searchQuery);
+    setIsGeocoding(false);
+    if (results && results.length > 0) {
+      const topMatch = results[0];
+      const lat = parseFloat(topMatch.lat);
+      const lng = parseFloat(topMatch.lon);
+      setCurrentCoords({ latitude: lat, longitude: lng });
+      const parts = topMatch.display_name.split(',');
+      setMainAddress(parts.slice(0, 2).join(',').trim());
+      setSubAddress(parts.slice(2, 5).join(',').trim());
+    }
+  };
 
   const handleConfirmLocation = () => {
     router.push('/register/step2');
@@ -34,33 +69,45 @@ export default function SelectLocationScreen() {
       <YellowHeader title="Select Location" />
 
       {/* Map View Section */}
-      <ImageBackground
-        source={require('../../assets/images/map_bg.png')}
-        style={styles.mapView}
-        resizeMode="cover"
-      >
+      <View style={styles.mapView}>
+        <InteractiveMap
+          height="100%"
+          center={currentCoords}
+          zoom={15}
+          interactivePicker={true}
+          onLocationSelect={handleLocationSelect}
+          markers={[
+            {
+              id: 'pickup',
+              latitude: currentCoords.latitude,
+              longitude: currentCoords.longitude,
+              title: mainAddress,
+              type: 'pickup',
+            },
+          ]}
+        />
+
         {/* Floating Top Search Bar */}
         <View style={styles.searchBarContainer}>
           <Ionicons name="search-outline" size={20} color="#64748B" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search for your area/street"
+            placeholder="Search OpenStreetMap location..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
           />
-          <TouchableOpacity activeOpacity={0.7} style={styles.targetIconBtn}>
-            <Ionicons name="locate-outline" size={22} color="#059669" />
+          <TouchableOpacity activeOpacity={0.7} style={styles.targetIconBtn} onPress={handleSearchSubmit}>
+            {isGeocoding ? (
+              <ActivityIndicator size="small" color="#059669" />
+            ) : (
+              <Ionicons name="locate-outline" size={22} color="#059669" />
+            )}
           </TouchableOpacity>
         </View>
-
-        {/* Center Pin Indicator */}
-        <View style={styles.centerPinContainer} pointerEvents="none">
-          <View style={styles.pinWrapper}>
-            <Ionicons name="location-sharp" size={44} color="#059669" />
-          </View>
-        </View>
-      </ImageBackground>
+      </View>
 
       {/* Bottom Sheet Card */}
       <View style={styles.bottomSheetCard}>
@@ -69,9 +116,13 @@ export default function SelectLocationScreen() {
             <Ionicons name="location-sharp" size={20} color="#059669" />
           </View>
           <View style={styles.addressInfoCol}>
-            <Text style={styles.currentAddressLabel}>CURRENT ADDRESS</Text>
-            <Text style={styles.mainAddressText}>42, Galle Road, Bambalapitiya</Text>
-            <Text style={styles.subAddressText}>Colombo 00400, Western Province</Text>
+            <Text style={styles.currentAddressLabel}>OPENSTREETMAP LOCATION</Text>
+            <Text style={styles.mainAddressText} numberOfLines={1}>
+              {mainAddress}
+            </Text>
+            <Text style={styles.subAddressText} numberOfLines={1}>
+              {subAddress}
+            </Text>
           </View>
         </View>
 
