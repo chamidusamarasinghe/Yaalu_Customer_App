@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   mapBackground: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',

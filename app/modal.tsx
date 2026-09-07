@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Modal, SafeAreaView, Platform, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Modal, Platform, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   modalCard: {
     width: '100%',

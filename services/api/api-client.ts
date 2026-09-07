@@ -2,15 +2,16 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 const getBaseUrl = () => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
+  // First prefer dynamic Metro debugger host IP if running via Expo Go / Metro
   const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
   if (hostUri) {
     const ip = hostUri.split(':')[0];
-    if (ip) {
+    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
       return 'http://' + ip + ':3001';
     }
+  }
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
   }
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:3001';
@@ -36,9 +37,42 @@ class ApiClient {
     return this.token;
   }
 
-  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = this.baseUrl + (endpoint.startsWith('/') ? endpoint : '/' + endpoint);
+  private getCandidateUrls(endpoint: string): string[] {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
+    const urls: string[] = [];
 
+    // 1. Current resolved base URL
+    urls.push(this.baseUrl + cleanEndpoint);
+
+    // 2. Dynamic host URI from Metro if available
+    const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
+    if (hostUri) {
+      const ip = hostUri.split(':')[0];
+      if (ip) {
+        const u = 'http://' + ip + ':3001' + cleanEndpoint;
+        if (!urls.includes(u)) urls.push(u);
+      }
+    }
+
+    // 3. Current local Wi-Fi IP
+    const wifiIpUrl = 'http://192.168.1.45:3001' + cleanEndpoint;
+    if (!urls.includes(wifiIpUrl)) urls.push(wifiIpUrl);
+
+    // 4. Android emulator fallback
+    if (Platform.OS === 'android') {
+      const androidUrl = 'http://10.0.2.2:3001' + cleanEndpoint;
+      if (!urls.includes(androidUrl)) urls.push(androidUrl);
+    }
+
+    // 5. Localhost fallback
+    const localhostUrl = 'http://localhost:3001' + cleanEndpoint;
+    if (!urls.includes(localhostUrl)) urls.push(localhostUrl);
+
+    return urls;
+  }
+
+  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const candidateUrls = this.getCandidateUrls(endpoint);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -49,32 +83,38 @@ class ApiClient {
       headers['Authorization'] = 'Bearer ' + this.token;
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    let lastError: any = null;
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+    for (const url of candidateUrls) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(errorData.message || 'API Error: ' + response.status);
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: response.statusText }));
+          throw new Error(errorData.message || 'API Error: ' + response.status);
+        }
+
+        // Successfully connected to backend, update baseUrl for subsequent calls
+        const urlObj = new URL(url);
+        this.baseUrl = urlObj.origin;
+        return await response.json();
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        lastError = error;
+        // Continue loop to try next candidate URL
       }
-
-      return await response.json();
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        console.warn('[ApiClient] Timeout reaching ' + url);
-        throw new Error('Connection timeout reaching backend on port 3001.');
-      }
-      console.warn('[ApiClient] Fetch error for ' + url + ':', error.message || error);
-      throw error;
     }
+
+    console.warn('[ApiClient] All candidate URLs failed for endpoint ' + endpoint + ':', lastError?.message || lastError);
+    throw lastError || new Error('Unable to connect to backend service.');
   }
 
   async get<T>(endpoint: string): Promise<T> {

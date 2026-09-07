@@ -1,17 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 ﻿import React, { useState, useRef } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  SafeAreaView,
-  StatusBar,
-  FlatList,
-  Dimensions,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-} from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, StatusBar, FlatList, Dimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');

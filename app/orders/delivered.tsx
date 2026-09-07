@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   confettiContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   confettiDot: {
     position: 'absolute',

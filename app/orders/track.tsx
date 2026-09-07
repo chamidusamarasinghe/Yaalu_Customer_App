@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   mapOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   scooterMarkerPosition: {
