@@ -2,6 +2,8 @@ import { apiClient } from './api-client';
 
 export interface UserProfile {
   id?: string;
+  fullName?: string;
+  name?: string;
   email?: string;
   role?: string;
   firstName?: string;

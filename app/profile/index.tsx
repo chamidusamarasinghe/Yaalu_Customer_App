@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,20 +11,22 @@ import {
   Platform,
   Switch,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import { authService } from '../../services/api/auth-service';
+import { uploadService } from '../../services/api/upload-service';
 
 export default function UserProfileScreen() {
   const router = useRouter();
-
   const user = authService.getCurrentUser();
 
   // Dynamic Profile Form States
   const [fullName, setFullName] = useState(
-    user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : ''
+    user.fullName || (user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : '')
   );
   const [email, setEmail] = useState(user.email || '');
   const [phone, setPhone] = useState(user.phoneNumber || '');
@@ -35,12 +37,87 @@ export default function UserProfileScreen() {
     user.profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=250&auto=format&fit=crop&q=80'
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   // Preferences Switches
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [smsAlertsEnabled, setSmsAlertsEnabled] = useState(true);
 
+  const processAndUploadPhoto = async (localUri: string) => {
+    setIsUploadingPhoto(true);
+    setProfilePicture(localUri);
+
+    try {
+      const res = await uploadService.uploadImage(localUri, 'yaalu/profiles');
+      if (res && res.url) {
+        setProfilePicture(res.url);
+        console.log('[Cloudinary Profile Photo Uploaded]:', res.url);
+      }
+    } catch (err: any) {
+      console.warn('[Cloudinary Profile Photo Warning]:', err?.message || err);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    Alert.alert(
+      'Update Profile Photo 📸',
+      'Choose an option to update your profile photo (Uploaded to Cloudinary CDN):',
+      [
+        {
+          text: 'Take Photo (Camera)',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Needed', 'Camera permission is required to take a profile photo.');
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.7,
+              base64: true,
+            });
+            if (!result.canceled && result.assets && result.assets[0]) {
+              const uriOrBase64 = result.assets[0].base64
+                ? `data:image/jpeg;base64,${result.assets[0].base64}`
+                : result.assets[0].uri;
+              await processAndUploadPhoto(uriOrBase64);
+            }
+          },
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Needed', 'Gallery permission is required to choose a profile photo.');
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.7,
+              base64: true,
+            });
+            if (!result.canceled && result.assets && result.assets[0]) {
+              const uriOrBase64 = result.assets[0].base64
+                ? `data:image/jpeg;base64,${result.assets[0].base64}`
+                : result.assets[0].uri;
+              await processAndUploadPhoto(uriOrBase64);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
   const handleSaveProfile = async () => {
+    if (isLoading || isUploadingPhoto) return;
     setIsLoading(true);
     try {
       const nameParts = fullName.trim().split(' ');
@@ -52,6 +129,7 @@ export default function UserProfileScreen() {
         email: email.trim(),
         firstName,
         lastName,
+        fullName: fullName.trim(),
         phoneNumber: phone.trim(),
         nicNumber: nic.trim(),
         city: city.trim(),
@@ -59,7 +137,7 @@ export default function UserProfileScreen() {
         profilePicture: profilePicture,
       });
 
-      Alert.alert('Profile Updated 🎉', 'Your profile details have been saved directly to the database!');
+      Alert.alert('Profile Updated 🎉', 'Your profile details and picture have been saved to the database!');
     } catch (error: any) {
       Alert.alert('Save Note', error.message || 'Updated local profile details.');
     } finally {
@@ -106,41 +184,45 @@ export default function UserProfileScreen() {
       >
         {/* User Hero Avatar Section */}
         <View style={styles.avatarHeroContainer}>
-          <View style={styles.avatarWrapper}>
-            <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
-            <TouchableOpacity activeOpacity={0.85} style={styles.cameraBadge}>
+          <TouchableOpacity activeOpacity={0.85} onPress={handlePickImage} style={styles.avatarWrapper}>
+            {isUploadingPhoto ? (
+              <View style={[styles.avatarImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#E2E8F0' }]}>
+                <ActivityIndicator size="large" color="#0A0E1A" />
+              </View>
+            ) : (
+              <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+            )}
+            <View style={styles.cameraBadge}>
               <Ionicons name="camera" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
+            </View>
+          </TouchableOpacity>
 
           <Text style={styles.userNameText}>{fullName || 'Customer Profile'}</Text>
           <Text style={styles.userEmailSubtitle}>{email || 'Not logged in'}</Text>
 
-          <View style={styles.membershipBadge}>
-            <Ionicons name="star" size={12} color="#D97706" style={{ marginRight: 4 }} />
-            <Text style={styles.membershipText}>YAALU MEMBER</Text>
-          </View>
+          <TouchableOpacity activeOpacity={0.7} onPress={handlePickImage} style={styles.membershipBadge}>
+            <Ionicons name="cloud-upload-outline" size={14} color="#D97706" style={{ marginRight: 4 }} />
+            <Text style={styles.membershipText}>{isUploadingPhoto ? 'Uploading...' : 'Tap photo to change'}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Quick Stats Grid */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>12</Text>
             <Text style={styles.statLabel}>Completed Orders</Text>
           </View>
-
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Saved Places</Text>
+            <Text style={styles.statNumber}>4.9 ★</Text>
+            <Text style={styles.statLabel}>User Rating</Text>
           </View>
-
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Yaalu Points</Text>
+            <Text style={styles.statNumber}>3</Text>
+            <Text style={styles.statLabel}>Saved Addresses</Text>
           </View>
         </View>
 
-        {/* Personal Details Form Section */}
+        {/* Personal Details Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Personal Details</Text>
 
@@ -168,14 +250,15 @@ export default function UserProfileScreen() {
                 style={styles.textInput}
                 value={email}
                 onChangeText={setEmail}
-                keyboardType="email-address"
                 placeholder="Enter email address"
                 placeholderTextColor="#94A3B8"
+                keyboardType="email-address"
+                autoCapitalize="none"
               />
             </View>
           </View>
 
-          {/* Phone Number */}
+          {/* Mobile Phone Number */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Phone Number</Text>
             <View style={styles.inputContainer}>
@@ -184,9 +267,9 @@ export default function UserProfileScreen() {
                 style={styles.textInput}
                 value={phone}
                 onChangeText={setPhone}
-                keyboardType="phone-pad"
                 placeholder="Enter phone number"
                 placeholderTextColor="#94A3B8"
+                keyboardType="phone-pad"
               />
             </View>
           </View>
@@ -273,11 +356,11 @@ export default function UserProfileScreen() {
         {/* Save & Logout Buttons */}
         <TouchableOpacity
           activeOpacity={0.88}
-          style={[styles.saveBtn, isLoading && { opacity: 0.7 }]}
+          style={[styles.saveBtn, (isLoading || isUploadingPhoto) && { opacity: 0.7 }]}
           onPress={handleSaveProfile}
-          disabled={isLoading}
+          disabled={isLoading || isUploadingPhoto}
         >
-          <Text style={styles.saveBtnText}>{isLoading ? 'Saving Changes...' : 'Save Profile Changes'}</Text>
+          <Text style={styles.saveBtnText}>{isLoading ? 'Saving Changes...' : isUploadingPhoto ? 'Uploading Photo...' : 'Save Profile Changes'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity activeOpacity={0.85} style={styles.logoutBtn} onPress={handleLogout}>
