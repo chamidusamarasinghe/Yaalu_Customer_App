@@ -1,8 +1,21 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, StatusBar, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  StatusBar,
+  Dimensions,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { shopService, ShopItem } from '../../services/api/shop-service';
+import { ProductItem } from '../../services/api/product-service';
 
 const { width } = Dimensions.get('window');
 
@@ -10,7 +23,36 @@ export default function StoreDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
 
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [shop, setShop] = useState<ShopItem | null>(null);
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isFavorite, setIsFavorite] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (id) {
+      loadStoreData(id as string);
+    }
+  }, [id]);
+
+  const loadStoreData = async (storeId: string) => {
+    setLoading(true);
+    try {
+      const [fetchedShop, fetchedProducts] = await Promise.all([
+        shopService.getShopById(storeId),
+        shopService.getShopProducts(storeId),
+      ]);
+      setShop(fetchedShop);
+      setProducts(fetchedProducts);
+    } catch (err) {
+      console.warn('[StoreDetailsScreen Error]:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProductPress = (productId: string) => {
+    router.push(`/product/${productId}` as any);
+  };
 
   return (
     <View style={styles.container}>
@@ -23,180 +65,118 @@ export default function StoreDetailsScreen() {
             <TouchableOpacity activeOpacity={0.7} style={styles.backBtn} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={26} color="#061138" />
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.7} style={styles.searchBtn}>
-              <Ionicons name="search-outline" size={22} color="#061138" />
-            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Store Hero Image Banner */}
-        <View style={styles.heroWrapper}>
-          <Image
-            source={require('../../assets/images/green_mart_hero.jpg')}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-          <View style={styles.heroOverlay}>
-            <Text style={styles.storeHeroTitle}>Green Mart</Text>
-            <Text style={styles.storeHeroRating}>⭐ 4.6 (320+ reviews)</Text>
-          </View>
-
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.favoriteBtn}
-            onPress={() => setIsFavorite(!isFavorite)}
-          >
-            <Ionicons
-              name={isFavorite ? 'heart' : 'heart-outline'}
-              size={22}
-              color={isFavorite ? '#EF4444' : '#FFFFFF'}
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#FDB813" />
+          <Text style={{ marginTop: 12, color: '#64748B', fontWeight: '600' }}>Loading shop details...</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Store Hero Banner */}
+          <View style={styles.heroWrapper}>
+            <Image
+              source={require('../../assets/images/green_mart_hero.jpg')}
+              style={styles.heroImage}
+              resizeMode="cover"
             />
-          </TouchableOpacity>
-        </View>
+            <View style={styles.heroOverlay}>
+              <Text style={styles.storeHeroTitle}>{shop?.shopName || 'Shop Details'}</Text>
+              <Text style={styles.storeHeroRating}>{shop?.businessType || 'Verified Merchant'}</Text>
+            </View>
 
-        {/* Card 1: About Green Mart */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>About Green Mart</Text>
-          <Text style={styles.cardDescription}>
-            Fresh and organic produce delivered straight from the farm to your doorstep. We prioritize local farmers and sustainable practices to ensure you get the most nutrient-dense food while supporting our community.
-          </Text>
-        </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.favoriteBtn}
+              onPress={() => setIsFavorite(!isFavorite)}
+            >
+              <Ionicons
+                name={isFavorite ? 'heart' : 'heart-outline'}
+                size={22}
+                color={isFavorite ? '#EF4444' : '#FFFFFF'}
+              />
+            </TouchableOpacity>
+          </View>
 
-        {/* Section 2: Featured Products */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Featured Products</Text>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(tabs)/explore')}>
-            <Text style={styles.viewAllText}>View All Products</Text>
-          </TouchableOpacity>
-        </View>
+          {/* Card 1: About Shop */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>About {shop?.shopName || 'Shop'}</Text>
+            <Text style={styles.cardDescription}>
+              {shop?.businessType ? `Specialized in ${shop.businessType}.` : 'Quality fresh produce and daily essentials delivered to your doorstep.'} Located at {shop?.shopAddress || shop?.outletAddress || 'Colombo, Sri Lanka'}.
+            </Text>
+          </View>
 
-        <View style={styles.featuredRow}>
-          {/* Featured 1 */}
-          <View style={styles.featuredCard}>
-            <Image source={require('../../assets/images/fresh_products.png')} style={styles.featuredImage} resizeMode="contain" />
-            <Text style={styles.featuredTitle}>Organic Kale</Text>
-            <View style={styles.featuredPriceRow}>
-              <Text style={styles.featuredPrice}>LKR 450</Text>
-              <TouchableOpacity activeOpacity={0.8} style={styles.plusBtn}>
-                <Ionicons name="add" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
+          {/* Card 2: Featured Shop Products */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Shop Catalog ({products.length})</Text>
+          </View>
+
+          {products.length === 0 ? (
+            <View style={[styles.card, { alignItems: 'center', paddingVertical: 24 }]}>
+              <Ionicons name="cube-outline" size={36} color="#94A3B8" />
+              <Text style={{ marginTop: 8, color: '#64748B', fontWeight: '600' }}>No products listed for this shop yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.featuredGrid}>
+              {products.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  activeOpacity={0.88}
+                  style={styles.featuredCard}
+                  onPress={() => handleProductPress(p.id)}
+                >
+                  <Image
+                    source={p.imageUrl ? { uri: p.imageUrl } : require('../../assets/images/red_apples.png')}
+                    style={styles.featuredImage}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.featuredTitle} numberOfLines={1}>{p.name}</Text>
+                  <View style={styles.featuredPriceRow}>
+                    <Text style={styles.featuredPrice}>LKR {p.price}</Text>
+                    <View style={styles.plusBtn}>
+                      <Ionicons name="add" size={18} color="#FFFFFF" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Card 3: Address & Location */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Location</Text>
+            <View style={styles.addressRow}>
+              <Ionicons name="location-outline" size={22} color="#0036AA" style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addressTitle}>{shop?.shopName}</Text>
+                <Text style={styles.addressSub}>{shop?.shopAddress || shop?.outletAddress || 'Sri Lanka'}</Text>
+              </View>
             </View>
           </View>
 
-          {/* Featured 2 */}
-          <View style={styles.featuredCard}>
-            <Image source={require('../../assets/images/red_apples.png')} style={styles.featuredImage} resizeMode="contain" />
-            <Text style={styles.featuredTitle}>Vine Tomatoes</Text>
-            <View style={styles.featuredPriceRow}>
-              <Text style={styles.featuredPrice}>LKR 320</Text>
-              <TouchableOpacity activeOpacity={0.8} style={styles.plusBtn}>
-                <Ionicons name="add" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
+          {/* Card 4: Contact Info */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Contact Info</Text>
+            <View style={styles.contactRow}>
+              <Ionicons name="call-outline" size={20} color="#2563EB" style={{ marginRight: 12 }} />
+              <View>
+                <Text style={styles.contactLabel}>Phone</Text>
+                <Text style={styles.contactValue}>{shop?.ownerPhone || '+94 11 234 5678'}</Text>
+              </View>
+            </View>
+            <View style={[styles.contactRow, { marginTop: 12 }]}>
+              <Ionicons name="mail-outline" size={20} color="#2563EB" style={{ marginRight: 12 }} />
+              <View>
+                <Text style={styles.contactLabel}>Email</Text>
+                <Text style={styles.contactValue}>{shop?.ownerEmail || 'contact@yaalu.lk'}</Text>
+              </View>
             </View>
           </View>
-        </View>
-
-        {/* Section 3: Customer Reviews */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Customer Reviews</Text>
-        </View>
-
-        <View style={styles.card}>
-          {/* Review 1 */}
-          <View style={styles.reviewHeader}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarInitials}>SM</Text>
-            </View>
-            <View style={styles.reviewerCol}>
-              <Text style={styles.reviewerName}>Sarah M.</Text>
-              <Text style={styles.starsText}>⭐⭐⭐⭐⭐</Text>
-            </View>
-          </View>
-          <Text style={styles.reviewBody}>
-            The quality of the vegetables is unmatched. Everything arrived super fresh and the delivery was exactly on time!
-          </Text>
-
-          <View style={styles.divider} />
-
-          {/* Review 2 */}
-          <View style={styles.reviewHeader}>
-            <View style={[styles.avatarCircle, { backgroundColor: '#BBF7D0' }]}>
-              <Text style={[styles.avatarInitials, { color: '#166534' }]}>JR</Text>
-            </View>
-            <View style={styles.reviewerCol}>
-              <Text style={styles.reviewerName}>Jason R.</Text>
-              <Text style={styles.starsText}>⭐⭐⭐⭐☆</Text>
-            </View>
-          </View>
-          <Text style={styles.reviewBody}>
-            Great local store. I love that they carry exotic fruits that are hard to find elsewhere in Colombo.
-          </Text>
-
-          <TouchableOpacity activeOpacity={0.8} style={styles.readReviewsBtn}>
-            <Text style={styles.readReviewsBtnText}>Read All Reviews</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Card 4: Store Location */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Store Location</Text>
-          <View style={styles.mapSnippetWrapper}>
-            <Image source={require('../../assets/images/map_preview.png')} style={styles.mapSnippetImage} resizeMode="cover" />
-          </View>
-          <View style={styles.addressRow}>
-            <Ionicons name="location-outline" size={20} color="#059669" style={{ marginRight: 8 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.addressTitle}>Address</Text>
-              <Text style={styles.addressSub}>Galle Road, Colombo 04</Text>
-            </View>
-          </View>
-          <TouchableOpacity activeOpacity={0.8} style={styles.directionsBtn}>
-            <Text style={styles.directionsBtnText}>Get Directions</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Card 5: Contact Info */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Contact Info</Text>
-          <View style={styles.contactRow}>
-            <Ionicons name="call-outline" size={20} color="#2563EB" style={{ marginRight: 12 }} />
-            <View>
-              <Text style={styles.contactLabel}>Phone</Text>
-              <Text style={styles.contactValue}>+94 11 234 5678</Text>
-            </View>
-          </View>
-          <View style={[styles.contactRow, { marginTop: 12 }]}>
-            <Ionicons name="mail-outline" size={20} color="#2563EB" style={{ marginRight: 12 }} />
-            <View>
-              <Text style={styles.contactLabel}>Email</Text>
-              <Text style={styles.contactValue}>contact@greenmart.lk</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Card 6: Opening Hours */}
-        <View style={[styles.card, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-          <View style={styles.hoursTitleRow}>
-            <Ionicons name="time-outline" size={22} color="#166534" style={{ marginRight: 8 }} />
-            <Text style={[styles.cardTitle, { color: '#166534', marginBottom: 0 }]}>Opening Hours</Text>
-          </View>
-          <View style={styles.hoursRow}>
-            <Text style={styles.hoursDays}>Mon - Sun</Text>
-            <Text style={styles.hoursTime}>7:00 AM – 10:00 PM</Text>
-          </View>
-          <View style={styles.openNowBadge}>
-            <Text style={styles.openNowDot}>● </Text>
-            <Text style={styles.openNowText}>OPEN NOW</Text>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Floating Chat Message Button */}
-      <TouchableOpacity activeOpacity={0.88} style={styles.chatFloatingBtn}>
-        <Ionicons name="chatbox-ellipses" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -222,16 +202,13 @@ const styles = StyleSheet.create({
   backBtn: {
     padding: 4,
   },
-  searchBtn: {
-    padding: 4,
-  },
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 40,
   },
   heroWrapper: {
-    height: 200,
+    height: 180,
     borderRadius: 24,
     overflow: 'hidden',
     marginBottom: 16,
@@ -251,12 +228,12 @@ const styles = StyleSheet.create({
   },
   storeHeroTitle: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
   },
   storeHeroRating: {
     color: '#FFD700',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     marginTop: 2,
   },
@@ -278,11 +255,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
   },
   cardTitle: {
     fontSize: 18,
@@ -296,29 +268,21 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 12,
-    marginTop: 4,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
   },
-  viewAllText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0036AA',
-  },
-  featuredRow: {
+  featuredGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginBottom: 16,
   },
   featuredCard: {
-    flex: 1,
+    width: (width - 44) / 2,
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 12,
@@ -327,7 +291,8 @@ const styles = StyleSheet.create({
   },
   featuredImage: {
     width: '100%',
-    height: 90,
+    height: 100,
+    borderRadius: 12,
     marginBottom: 8,
   },
   featuredTitle: {
@@ -354,74 +319,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  reviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  avatarCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FED7AA',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  avatarInitials: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#C2410C',
-  },
-  reviewerCol: {
-    flex: 1,
-  },
-  reviewerName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  starsText: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  reviewBody: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 14,
-  },
-  readReviewsBtn: {
-    marginTop: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-  },
-  readReviewsBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0036AA',
-  },
-  mapSnippetWrapper: {
-    height: 120,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  mapSnippetImage: {
-    width: '100%',
-    height: '100%',
-  },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
   },
   addressTitle: {
     fontSize: 14,
@@ -431,17 +331,6 @@ const styles = StyleSheet.create({
   addressSub: {
     fontSize: 13,
     color: '#64748B',
-  },
-  directionsBtn: {
-    backgroundColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  directionsBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#334155',
   },
   contactRow: {
     flexDirection: 'row',
@@ -456,54 +345,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#0F172A',
-  },
-  hoursTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  hoursRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  hoursDays: {
-    fontSize: 14,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  hoursTime: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#166534',
-  },
-  openNowBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  openNowDot: {
-    color: '#166534',
-    fontSize: 14,
-  },
-  openNowText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#166534',
-  },
-  chatFloatingBtn: {
-    position: 'absolute',
-    bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#061138',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
   },
 });

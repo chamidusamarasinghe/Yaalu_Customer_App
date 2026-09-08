@@ -1,103 +1,102 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Image, StatusBar, Dimensions, FlatList, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  StatusBar,
+  Dimensions,
+  Platform,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { productService, ProductItem } from '../../services/api/product-service';
+import { shopService, ShopItem } from '../../services/api/shop-service';
 
 const { width } = Dimensions.get('window');
 
-interface ProductItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  price: string;
-  priceValue: number;
-  inStock: boolean;
-  category: 'Fruits' | 'Vegetables' | 'Dairy';
-  image: any;
-}
-
-const PRODUCTS: ProductItem[] = [
-  {
-    id: '1',
-    title: 'Red Apple 1kg',
-    subtitle: 'Freshly picked',
-    price: 'LKR 650',
-    priceValue: 650,
-    inStock: true,
-    category: 'Fruits',
-    image: require('../../assets/images/red_apples.png'),
-  },
-  {
-    id: '2',
-    title: 'Banana 500g',
-    subtitle: 'Local Cavendish',
-    price: 'LKR 280',
-    priceValue: 280,
-    inStock: true,
-    category: 'Fruits',
-    image: require('../../assets/images/bananas.png'),
-  },
-  {
-    id: '3',
-    title: 'Broccoli 250g',
-    subtitle: 'Imported Quality',
-    price: 'LKR 420',
-    priceValue: 420,
-    inStock: true,
-    category: 'Vegetables',
-    image: require('../../assets/images/broccoli.png'),
-  },
-  {
-    id: '4',
-    title: 'Fresh Milk 1L',
-    subtitle: 'Pure Highland',
-    price: 'LKR 550',
-    priceValue: 550,
-    inStock: true,
-    category: 'Dairy',
-    image: require('../../assets/images/fresh_milk.png'),
-  },
-];
-
-const CATEGORIES = ['All Products', 'Fruits', 'Vegetables', 'Dairy'];
+const CATEGORIES = ['All Products', 'Fruits', 'Vegetables', 'Dairy', 'Bakery'];
 
 export default function ShopCatalogScreen() {
   const router = useRouter();
 
-  const [activeCategory, setActiveCategory] = useState('All Products');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [cartCount, setCartCount] = useState(2);
-  const [cartTotal, setCartTotal] = useState(930);
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [shops, setShops] = useState<ShopItem[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>('All Products');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [cartCount, setCartCount] = useState<number>(0);
+  const [cartTotal, setCartTotal] = useState<number>(0);
 
-  const filteredProducts = PRODUCTS.filter((item) => {
-    const matchesCategory =
-      activeCategory === 'All Products' || item.category === activeCategory;
-    const matchesSearch = item.title
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const loadData = async () => {
+    try {
+      const [fetchedProducts, fetchedShops] = await Promise.all([
+        productService.getProducts(),
+        shopService.getShops(),
+      ]);
+      setProducts(fetchedProducts);
+      setShops(fetchedShops);
+    } catch (err) {
+      console.warn('[ExploreScreen Load Error]:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
 
   const handleProductPress = (productId: string) => {
     router.push(`/product/${productId}` as any);
   };
 
-  const handleAddToCart = (item: ProductItem) => {
-    setCartCount((prev) => prev + 1);
-    setCartTotal((prev) => prev + item.priceValue);
-    router.push('/modal');
+  const handleShopPress = (shopId: string) => {
+    router.push(`/store/${shopId}` as any);
   };
 
-  const handleStoreInfoPress = () => {
-    router.push('/store/1' as any);
+  const handleAddToCart = (item: ProductItem) => {
+    const itemPrice = typeof item.price === 'number' ? item.price : parseFloat(item.price as string) || 0;
+    setCartCount((prev) => prev + 1);
+    setCartTotal((prev) => prev + itemPrice);
   };
+
+  // Filter products by category & search query
+  const filteredProducts = products.filter((item) => {
+    const nameMatch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const descMatch = item.description ? item.description.toLowerCase().includes(searchQuery.toLowerCase()) : false;
+    const matchesSearch = nameMatch || descMatch;
+
+    let matchesCategory = true;
+    if (activeCategory !== 'All Products') {
+      const catLower = activeCategory.toLowerCase();
+      const nameCatMatch = item.name.toLowerCase().includes(catLower);
+      const descCatMatch = item.description ? item.description.toLowerCase().includes(catLower) : false;
+      const unitCatMatch = item.unit ? item.unit.toLowerCase().includes(catLower) : false;
+      matchesCategory = nameCatMatch || descCatMatch || unitCatMatch;
+    }
+
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
-      {/* Top Header Bar */}
+      {/* Top Header */}
       <View style={styles.topHeader}>
         <SafeAreaView style={styles.headerSafeArea}>
           <View style={styles.headerRow}>
@@ -108,31 +107,42 @@ export default function ShopCatalogScreen() {
         </SafeAreaView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Store Banner Header Card */}
-        <TouchableOpacity activeOpacity={0.9} style={styles.storeHeaderCard} onPress={handleStoreInfoPress}>
-          <View style={styles.storeLogoSquare}>
-            <Image source={require('../../assets/images/fresh_products.png')} style={styles.storeLogoImage} resizeMode="contain" />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FDB813']} />}
+      >
+        {/* Shops Available Horizontal Banner */}
+        {shops.length > 0 && (
+          <View style={styles.shopsSection}>
+            <Text style={styles.sectionHeaderTitle}>Shops & Marts</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shopsHorizontalList}>
+              {shops.map((shop) => (
+                <TouchableOpacity
+                  key={shop.id}
+                  activeOpacity={0.85}
+                  style={styles.shopPillCard}
+                  onPress={() => handleShopPress(shop.id)}
+                >
+                  <View style={styles.shopPillIcon}>
+                    <Ionicons name="storefront" size={20} color="#0036AA" />
+                  </View>
+                  <View style={styles.shopPillTextCol}>
+                    <Text style={styles.shopPillName} numberOfLines={1}>{shop.shopName}</Text>
+                    <Text style={styles.shopPillSub} numberOfLines={1}>{shop.businessType || shop.shopAddress}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
-          <View style={styles.storeInfoCol}>
-            <View style={styles.storeTitleRow}>
-              <Text style={styles.storeTitle}>Green Mart</Text>
-              <Ionicons name="information-circle-outline" size={20} color="#64748B" style={{ marginLeft: 6 }} />
-            </View>
-            <View style={styles.subInfoRow}>
-              <Text style={styles.subInfoText}>🕒 15–20 min</Text>
-              <Text style={styles.subInfoText}>📍 0.8 km</Text>
-              <Text style={styles.subInfoText}>🚚 Fee LKR 250</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+        )}
 
-        {/* Search Bar inside Store */}
+        {/* Search Bar */}
         <View style={styles.searchBarWrapper}>
           <Ionicons name="search-outline" size={20} color="#94A3B8" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search in Green Mart"
+            placeholder="Search products..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -158,62 +168,82 @@ export default function ShopCatalogScreen() {
           })}
         </ScrollView>
 
-        {/* 2-Column Product Grid */}
-        <View style={styles.productGrid}>
-          {filteredProducts.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              activeOpacity={0.88}
-              style={styles.productCard}
-              onPress={() => handleProductPress(item.id)}
-            >
-              {/* In Stock Badge */}
-              <View style={styles.inStockBadge}>
-                <Text style={styles.inStockText}>IN STOCK</Text>
-              </View>
+        {/* Loading Spinner */}
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#FDB813" />
+            <Text style={{ marginTop: 12, color: '#64748B', fontWeight: '600' }}>Loading products from database...</Text>
+          </View>
+        ) : filteredProducts.length === 0 ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <Ionicons name="basket-outline" size={48} color="#94A3B8" />
+            <Text style={{ marginTop: 12, fontSize: 16, fontWeight: '700', color: '#334155' }}>No products found</Text>
+            <Text style={{ marginTop: 4, fontSize: 13, color: '#94A3B8' }}>Try searching with a different term</Text>
+          </View>
+        ) : (
+          /* 2-Column Product Grid */
+          <View style={styles.productGrid}>
+            {filteredProducts.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                activeOpacity={0.88}
+                style={styles.productCard}
+                onPress={() => handleProductPress(item.id)}
+              >
+                {/* In Stock Badge */}
+                <View style={styles.inStockBadge}>
+                  <Text style={styles.inStockText}>{item.stock > 0 ? 'IN STOCK' : 'OUT OF STOCK'}</Text>
+                </View>
 
-              {/* Product Image */}
-              <View style={styles.productImageContainer}>
-                <Image source={item.image} style={styles.productImage} resizeMode="contain" />
-              </View>
+                {/* Product Image */}
+                <View style={styles.productImageContainer}>
+                  <Image
+                    source={item.imageUrl ? { uri: item.imageUrl } : require('../../assets/images/red_apples.png')}
+                    style={styles.productImage}
+                    resizeMode="cover"
+                  />
+                </View>
 
-              {/* Title & Subtitle */}
-              <Text style={styles.productTitle}>{item.title}</Text>
-              <Text style={styles.productSubtitle}>{item.subtitle}</Text>
+                {/* Title & Subtitle */}
+                <Text style={styles.productTitle} numberOfLines={1}>{item.name}</Text>
+                <Text style={styles.productSubtitle} numberOfLines={1}>{item.unit || item.description || 'Fresh Produce'}</Text>
 
-              {/* Price & Add Button Row */}
-              <View style={styles.priceRow}>
-                <Text style={styles.productPrice}>{item.price}</Text>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  style={styles.addPlusBtn}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleAddToCart(item);
-                  }}
-                >
-                  <Ionicons name="add" size={22} color="#061138" />
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+                {/* Price & Add Button Row */}
+                <View style={styles.priceRow}>
+                  <Text style={styles.productPrice}>LKR {item.price}</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.addPlusBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleAddToCart(item);
+                    }}
+                  >
+                    <Ionicons name="add" size={22} color="#061138" />
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       {/* Floating Bottom Cart Bar */}
-      <View style={styles.floatingCartBarContainer}>
-        <TouchableOpacity
-          activeOpacity={0.88}
-          style={styles.floatingCartBar}
-          onPress={() => router.push('/(tabs)/cart')}
-        >
-          <View style={styles.cartBarLeft}>
-            <Ionicons name="cart" size={22} color="#061138" style={{ marginRight: 8 }} />
-            <Text style={styles.cartBarText}>View Cart ({cartCount} items)</Text>
-          </View>
-          <Text style={styles.cartBarPrice}>LKR {cartTotal}</Text>
-        </TouchableOpacity>
-      </View>
+      {cartCount > 0 && (
+        <View style={styles.floatingCartBarContainer}>
+          <TouchableOpacity
+            activeOpacity={0.88}
+            style={styles.floatingCartBar}
+            onPress={() => router.push('/(tabs)/cart')}
+          >
+            <View style={styles.cartBarLeft}>
+              <Ionicons name="cart" size={22} color="#061138" style={{ marginRight: 8 }} />
+              <Text style={styles.cartBarText}>View Cart ({cartCount} items)</Text>
+            </View>
+            <Text style={styles.cartBarPrice}>LKR {cartTotal.toFixed(2)}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -243,55 +273,49 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 100,
   },
-  storeHeaderCard: {
+  shopsSection: {
+    marginBottom: 16,
+  },
+  sectionHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  shopsHorizontalList: {
+    gap: 10,
+  },
+  shopPillCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    minWidth: 160,
   },
-  storeLogoSquare: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
+  shopPillIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 10,
   },
-  storeLogoImage: {
-    width: 44,
-    height: 44,
-  },
-  storeInfoCol: {
+  shopPillTextCol: {
     flex: 1,
   },
-  storeTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  storeTitle: {
-    fontSize: 20,
+  shopPillName: {
+    fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
   },
-  subInfoRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  subInfoText: {
-    fontSize: 12,
+  shopPillSub: {
+    fontSize: 11,
     color: '#64748B',
-    fontWeight: '600',
   },
   searchBarWrapper: {
     flexDirection: 'row',
@@ -375,6 +399,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginVertical: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   productImage: {
     width: '100%',
