@@ -1,110 +1,56 @@
-﻿import { apiClient } from './api-client';
+import { apiClient } from './api-client';
 
 export interface OrderItemPayload {
   productId: string;
-  name: string;
+  productName: string;
   quantity: number;
-  price: number;
+  unitPrice: number;
 }
 
-export interface CreateOrderPayload {
-  userId: string;
+export interface CreateOrderDto {
+  merchantId?: string;
+  customerId: string;
+  customerName?: string;
+  notes?: string;
   items: OrderItemPayload[];
-  totalAmount: number;
-  deliveryAddress: string;
 }
 
-export interface OrderRecord {
+export interface OrderResponse {
   id: string;
-  userId: string;
-  items: OrderItemPayload[];
-  totalAmount: number;
+  merchantId: string;
+  customerId?: string;
+  customerName?: string;
+  totalAmount: string | number;
   status: string;
-  deliveryAddress: string;
-  createdAt?: string;
+  notes?: string;
+  createdAt: string;
+  items: {
+    id: string;
+    productName: string;
+    quantity: number;
+    unitPrice: string | number;
+    subtotal: string | number;
+  }[];
 }
 
-export const orderService = {
-  async createOrder(payload: CreateOrderPayload): Promise<OrderRecord> {
-    try {
-      return await apiClient.post<OrderRecord>('/orders', payload);
-    } catch (error) {
-      console.warn('[orderService] Falling back to local order placement for demo:', error);
-      return {
-        id: `ORD-${Math.floor(10000 + Math.random() * 90000)}`,
-        userId: payload.userId,
-        items: payload.items,
-        totalAmount: payload.totalAmount,
-        status: 'CONFIRMED',
-        deliveryAddress: payload.deliveryAddress,
-        createdAt: new Date().toISOString(),
-      };
-    }
-  },
+class OrderService {
+  async createOrder(dto: CreateOrderDto): Promise<OrderResponse> {
+    return apiClient.post<OrderResponse>('/orders', dto);
+  }
 
-  async getUserOrders(userId: string): Promise<OrderRecord[]> {
+  async getCustomerOrders(customerId?: string): Promise<OrderResponse[]> {
     try {
-      return await apiClient.get<OrderRecord[]>(`/orders/user/${userId}`);
+      let endpoint = '/orders';
+      if (customerId) {
+        endpoint += `?customerId=${encodeURIComponent(customerId)}`;
+      }
+      const orders = await apiClient.get<OrderResponse[]>(endpoint);
+      return orders || [];
     } catch (error) {
-      console.warn('[orderService] Falling back to default order history:', error);
-      return [
-        {
-          id: 'ORD-98231',
-          userId,
-          items: [
-            {
-              productId: '11111111-1111-1111-1111-111111111111',
-              name: 'Red Apple 1kg',
-              quantity: 2,
-              price: 650.0,
-            },
-          ],
-          totalAmount: 1300.0,
-          status: 'CONFIRMED',
-          deliveryAddress: '123, Flower Road, Colombo 07',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 'ORD-87412',
-          userId,
-          items: [
-            {
-              productId: '44444444-4444-4444-4444-444444444444',
-              name: 'Fresh Milk 1L',
-              quantity: 1,
-              price: 550.0,
-            },
-          ],
-          totalAmount: 550.0,
-          status: 'DELIVERED',
-          deliveryAddress: 'No. 45, Galle Road, Colombo 03',
-          createdAt: new Date().toISOString(),
-        },
-      ];
+      console.warn('[OrderService Error getCustomerOrders]:', error);
+      return [];
     }
-  },
+  }
+}
 
-  async getOrderById(id: string): Promise<OrderRecord> {
-    try {
-      return await apiClient.get<OrderRecord>(`/orders/${id}`);
-    } catch (error) {
-      console.warn(`[orderService] Fallback for order ${id}:`, error);
-      return {
-        id,
-        userId: 'a1a1a1a1-1111-1111-1111-a1a1a1a1a1a1',
-        items: [
-          {
-            productId: '11111111-1111-1111-1111-111111111111',
-            name: 'Red Apple 1kg',
-            quantity: 1,
-            price: 650.0,
-          },
-        ],
-        totalAmount: 650.0,
-        status: 'CONFIRMED',
-        deliveryAddress: '123, Flower Road, Colombo 07',
-        createdAt: new Date().toISOString(),
-      };
-    }
-  },
-};
+export const orderService = new OrderService();

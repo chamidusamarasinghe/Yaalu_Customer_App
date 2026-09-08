@@ -1,179 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   StatusBar,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { orderService, OrderResponse } from '../../services/api/order-service';
+import { authService } from '../../services/api/auth-service';
 
-interface OrderItem {
-  id: string;
-  storeName: string;
-  itemsCount: string;
-  total: string;
-  date: string;
-  statusLabel: string;
-  statusType: 'preparing' | 'out_for_delivery' | 'ready_for_pickup' | 'delivered' | 'cancelled';
-  tabCategory: 'Ongoing' | 'Completed' | 'Cancelled';
-  iconName: keyof typeof Ionicons.glyphMap;
-  iconBg: string;
-  iconColor: string;
-  badgeBg: string;
-  badgeTextColor: string;
-  buttonLabel: string;
-  buttonType: 'green' | 'dark';
-  statusRoute: string;
-  detailsRoute: string;
-}
-
-const ORDERS_LIST: OrderItem[] = [
-  {
-    id: '#YA12345',
-    storeName: 'Green Mart',
-    itemsCount: '3 Items',
-    total: 'LKR 1,570.00',
-    date: 'Today, 10:30 AM',
-    statusLabel: 'Preparing',
-    statusType: 'preparing',
-    tabCategory: 'Ongoing',
-    iconName: 'cart-outline',
-    iconBg: '#E6F4EA',
-    iconColor: '#059669',
-    badgeBg: '#FEF3C7',
-    badgeTextColor: '#D97706',
-    buttonLabel: 'Order status',
-    buttonType: 'green',
-    statusRoute: '/orders/status',
-    detailsRoute: '/orders/details',
-  },
-  {
-    id: '#YA12346',
-    storeName: 'Fresh Basket',
-    itemsCount: '5 Items',
-    total: 'LKR 2,340.00',
-    date: 'Today, 11:15 AM',
-    statusLabel: 'Out for Delivery',
-    statusType: 'out_for_delivery',
-    tabCategory: 'Ongoing',
-    iconName: 'bus-outline',
-    iconBg: '#E8F0FE',
-    iconColor: '#2563EB',
-    badgeBg: '#DBEAFE',
-    badgeTextColor: '#1D4ED8',
-    buttonLabel: 'Order Status',
-    buttonType: 'green',
-    statusRoute: '/orders/track',
-    detailsRoute: '/orders/details',
-  },
-  {
-    id: '#YA12347',
-    storeName: 'Happy Grocers',
-    itemsCount: '2 Items',
-    total: 'LKR 980.00',
-    date: 'Today, 09:20 AM',
-    statusLabel: 'Ready for Pickup',
-    statusType: 'ready_for_pickup',
-    tabCategory: 'Ongoing',
-    iconName: 'bag-handle-outline',
-    iconBg: '#F3E8FF',
-    iconColor: '#7E22CE',
-    badgeBg: '#F3E8FF',
-    badgeTextColor: '#7E22CE',
-    buttonLabel: 'order status',
-    buttonType: 'green',
-    statusRoute: '/orders/status',
-    detailsRoute: '/orders/details',
-  },
-  {
-    id: '#YA12330',
-    storeName: 'Super Mart',
-    itemsCount: '4 Items',
-    total: 'LKR 2,150.00',
-    date: 'Yesterday, 06:45 PM',
-    statusLabel: 'Delivered',
-    statusType: 'delivered',
-    tabCategory: 'Completed',
-    iconName: 'checkmark-circle-outline',
-    iconBg: '#DCFCE7',
-    iconColor: '#166534',
-    badgeBg: '#DCFCE7',
-    badgeTextColor: '#166534',
-    buttonLabel: 'View Details',
-    buttonType: 'dark',
-    statusRoute: '/orders/delivered',
-    detailsRoute: '/orders/details',
-  },
-  {
-    id: '#YA12329',
-    storeName: 'Daily Needs',
-    itemsCount: '6 Items',
-    total: 'LKR 3,560.00',
-    date: 'Yesterday, 04:30 PM',
-    statusLabel: 'Cancelled',
-    statusType: 'cancelled',
-    tabCategory: 'Cancelled',
-    iconName: 'close-circle-outline',
-    iconBg: '#FEE2E2',
-    iconColor: '#DC2626',
-    badgeBg: '#FEE2E2',
-    badgeTextColor: '#DC2626',
-    buttonLabel: 'View Details',
-    buttonType: 'dark',
-    statusRoute: '/orders/details',
-    detailsRoute: '/orders/details',
-  },
-];
-
-export default function MyOrdersScreen() {
+export default function ActivitiesScreen() {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [activeTab, setActiveTab] = useState<'All' | 'Ongoing' | 'Completed' | 'Cancelled'>('All');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  const filteredOrders = ORDERS_LIST.filter((order) => {
-    const matchesTab = activeTab === 'All' || order.tabCategory === activeTab;
-    const matchesSearch =
-      searchQuery.trim() === '' ||
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.storeName.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesTab && matchesSearch;
+  const loadActivities = async () => {
+    try {
+      const user = authService.getUser();
+      const customerId = user?.id;
+      const fetchedOrders = await orderService.getCustomerOrders(customerId);
+      setOrders(fetchedOrders);
+    } catch (err) {
+      console.warn('[ActivitiesScreen Load Error]:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadActivities();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadActivities();
+  };
+
+  const filteredOrders = orders.filter((o) => {
+    const statusLower = (o.status || '').toLowerCase();
+    if (activeTab === 'Ongoing') {
+      return statusLower === 'pending' || statusLower === 'confirmed' || statusLower === 'processing' || statusLower === 'shipped';
+    }
+    if (activeTab === 'Completed') {
+      return statusLower === 'delivered';
+    }
+    if (activeTab === 'Cancelled') {
+      return statusLower === 'cancelled';
+    }
+    return true;
   });
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
-      {/* Header Container */}
+      {/* Header Bar */}
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.headerBtn}
-            onPress={() => router.replace('/(tabs)')}
-          >
-            <Ionicons name="chevron-back" size={24} color="#0A0E1A" />
+          <TouchableOpacity activeOpacity={0.7} style={styles.headerBtn} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={26} color="#061138" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Orders</Text>
-          <TouchableOpacity activeOpacity={0.7} style={styles.headerBtn}>
-            <Ionicons name="options-outline" size={22} color="#0A0E1A" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Input Bar */}
-        <View style={styles.searchBarContainer}>
-          <Ionicons name="search-outline" size={20} color="#94A3B8" style={{ marginRight: 8 }} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search order ID / shop"
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+          <Text style={styles.headerTitle}>Activities</Text>
+          <View style={{ width: 34 }} />
         </View>
 
         {/* Filter Navigation Tabs */}
@@ -195,82 +92,62 @@ export default function MyOrdersScreen() {
         </View>
       </View>
 
-      {/* Orders Scroll Content */}
+      {/* Activities Content */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FDB813']} />}
       >
-        {filteredOrders.length === 0 ? (
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#FDB813" />
+            <Text style={{ marginTop: 12, color: '#64748B', fontWeight: '600' }}>Loading user activities...</Text>
+          </View>
+        ) : filteredOrders.length === 0 ? (
+          /* Empty Activities State */
           <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={60} color="#94A3B8" style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyTitle}>No orders found</Text>
-            <Text style={styles.emptySubtitle}>There are no orders matching your selected criteria.</Text>
+            <Ionicons name="time-outline" size={64} color="#CBD5E1" style={{ marginBottom: 12 }} />
+            <Text style={styles.emptyTitle}>No activities yet</Text>
+            <Text style={styles.emptySubtitle}>You haven't completed any rides or shop purchases yet.</Text>
           </View>
         ) : (
-          filteredOrders.map((order) => (
-            <TouchableOpacity
-              key={order.id}
-              activeOpacity={0.9}
-              style={styles.orderCard}
-              onPress={() => router.push(order.detailsRoute as any)}
-            >
-              <View style={styles.cardHeaderRow}>
-                {/* Store Icon Badge */}
-                <View style={[styles.iconCircle, { backgroundColor: order.iconBg }]}>
-                  <Ionicons name={order.iconName} size={22} color={order.iconColor} />
+          filteredOrders.map((order) => {
+            const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : 'Recent';
+
+            const itemsCount = order.items ? order.items.length : 0;
+            const totalVal = typeof order.totalAmount === 'number' ? order.totalAmount : parseFloat(order.totalAmount as string) || 0;
+
+            return (
+              <View key={order.id} style={styles.orderCard}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.iconCircle, { backgroundColor: '#E6F4EA' }]}>
+                    <Ionicons name="cart-outline" size={22} color="#059669" />
+                  </View>
+
+                  <View style={styles.cardMainCol}>
+                    <Text style={styles.orderIdText}>Order #{order.id.substring(0, 8).toUpperCase()}</Text>
+                    <Text style={styles.storeNameText}>{order.customerName || 'Shop Order'}</Text>
+                  </View>
+
+                  <View style={[styles.statusBadge, { backgroundColor: order.status === 'delivered' ? '#DCFCE7' : '#FEF3C7' }]}>
+                    <Text style={[styles.statusBadgeText, { color: order.status === 'delivered' ? '#166534' : '#D97706' }]}>
+                      {(order.status || 'PENDING').toUpperCase()}
+                    </Text>
+                  </View>
                 </View>
 
-                {/* Info Col */}
-                <View style={styles.cardMainCol}>
-                  <Text style={styles.orderIdText}>{order.id}</Text>
-                  <Text style={styles.storeNameText}>{order.storeName}</Text>
-                </View>
-
-                {/* Status Badge */}
-                <View style={[styles.statusBadge, { backgroundColor: order.badgeBg }]}>
-                  <Text style={[styles.statusBadgeText, { color: order.badgeTextColor }]}>
-                    {order.statusLabel}
-                  </Text>
-                </View>
+                <Text style={styles.summaryText}>
+                  {itemsCount} {itemsCount === 1 ? 'Item' : 'Items'} ? LKR {totalVal.toFixed(2)}
+                </Text>
+                <Text style={styles.dateText}>{dateStr}</Text>
               </View>
-
-              {/* Subtext info */}
-              <Text style={styles.summaryText}>
-                {order.itemsCount} • {order.total}
-              </Text>
-              <Text style={styles.dateText}>{order.date}</Text>
-
-              {/* Chevron arrow button - Clicking arrow opens Order Details */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                style={styles.chevronIcon}
-                onPress={() => router.push(order.detailsRoute as any)}
-              >
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-
-              {/* Action Button at bottom right of card */}
-              <View style={styles.actionBtnRow}>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  style={[
-                    styles.cardActionBtn,
-                    order.buttonType === 'green' ? styles.btnGreenOutline : styles.btnDarkOutline,
-                  ]}
-                  onPress={() => router.push(order.statusRoute as any)}
-                >
-                  <Text
-                    style={[
-                      styles.btnText,
-                      order.buttonType === 'green' ? styles.btnTextGreen : styles.btnTextDark,
-                    ]}
-                  >
-                    {order.buttonLabel}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </View>
@@ -278,20 +155,12 @@ export default function MyOrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
   header: {
     backgroundColor: '#FDB813',
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 44,
     paddingHorizontal: 16,
     paddingBottom: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 3,
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -299,34 +168,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  headerBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0A0E1A',
-  },
-  searchBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingHorizontal: 14,
-    height: 44,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
+  headerBtn: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#0A0E1A' },
   tabsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -386,12 +229,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 2,
-    position: 'relative',
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -440,38 +277,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94A3B8',
     marginLeft: 56,
-  },
-  chevronIcon: {
-    position: 'absolute',
-    right: 16,
-    top: 48,
-  },
-  actionBtnRow: {
-    alignItems: 'flex-end',
-    marginTop: 4,
-  },
-  cardActionBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1.5,
-  },
-  btnGreenOutline: {
-    borderColor: '#059669',
-    backgroundColor: '#FFFFFF',
-  },
-  btnDarkOutline: {
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-  },
-  btnText: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  btnTextGreen: {
-    color: '#059669',
-  },
-  btnTextDark: {
-    color: '#0F172A',
   },
 });
