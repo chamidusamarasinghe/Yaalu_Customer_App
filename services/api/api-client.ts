@@ -1,22 +1,27 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+const LOCAL_WIFI_IP = '192.168.8.166';
+
+const isVirtualAdapterIp = (ip: string): boolean => {
+  if (!ip || ip === 'localhost' || ip === '127.0.0.1') return true;
+  if (ip.startsWith('192.168.48.')) return true;
+  if (ip.startsWith('172.') && !ip.startsWith('172.20.')) return true;
+  return false;
+};
+
 const getBaseUrl = () => {
-  // First prefer dynamic Metro debugger host IP if running via Expo Go / Metro
-  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return 'http://' + ip + ':3001';
-    }
-  }
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3001';
+  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    if (ip && !isVirtualAdapterIp(ip)) {
+      return 'http://' + ip + ':3001';
+    }
   }
-  return 'http://localhost:3001';
+  return 'http://' + LOCAL_WIFI_IP + ':3001';
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -41,30 +46,26 @@ class ApiClient {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
     const urls: string[] = [];
 
-    // 1. Current resolved base URL
-    urls.push(this.baseUrl + cleanEndpoint);
+    const primaryUrl = (process.env.EXPO_PUBLIC_API_URL || 'http://' + LOCAL_WIFI_IP + ':3001') + cleanEndpoint;
+    urls.push(primaryUrl);
 
-    // 2. Dynamic host URI from Metro if available
+    const baseEndpoint = this.baseUrl + cleanEndpoint;
+    if (!urls.includes(baseEndpoint)) urls.push(baseEndpoint);
+
     const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
     if (hostUri) {
       const ip = hostUri.split(':')[0];
-      if (ip) {
+      if (ip && !isVirtualAdapterIp(ip)) {
         const u = 'http://' + ip + ':3001' + cleanEndpoint;
         if (!urls.includes(u)) urls.push(u);
       }
     }
 
-    // 3. Current local Wi-Fi IP
-    const wifiIpUrl = 'http://192.168.1.45:3001' + cleanEndpoint;
-    if (!urls.includes(wifiIpUrl)) urls.push(wifiIpUrl);
-
-    // 4. Android emulator fallback
     if (Platform.OS === 'android') {
       const androidUrl = 'http://10.0.2.2:3001' + cleanEndpoint;
       if (!urls.includes(androidUrl)) urls.push(androidUrl);
     }
 
-    // 5. Localhost fallback
     const localhostUrl = 'http://localhost:3001' + cleanEndpoint;
     if (!urls.includes(localhostUrl)) urls.push(localhostUrl);
 
@@ -87,7 +88,7 @@ class ApiClient {
 
     for (const url of candidateUrls) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
       try {
         const response = await fetch(url, {
@@ -97,23 +98,27 @@ class ApiClient {
         });
         clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: response.statusText }));
-          throw new Error(errorData.message || 'API Error: ' + response.status);
-        }
-
-        // Successfully connected to backend, update baseUrl for subsequent calls
         const urlObj = new URL(url);
         this.baseUrl = urlObj.origin;
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: response.statusText }));
+          const serverErr = new Error(errorData.message || 'API Error: ' + response.status);
+          (serverErr as any).isServerError = true;
+          throw serverErr;
+        }
+
         return await response.json();
       } catch (error: any) {
         clearTimeout(timeoutId);
         lastError = error;
-        // Continue loop to try next candidate URL
+        if (error && error.isServerError) {
+          throw error;
+        }
       }
     }
 
-    console.warn('[ApiClient] All candidate URLs failed for endpoint ' + endpoint + ':', lastError?.message || lastError);
+    console.warn('[ApiClient] Connection attempt failed for ' + endpoint + ':', lastError?.message || lastError);
     throw lastError || new Error('Unable to connect to backend service.');
   }
 

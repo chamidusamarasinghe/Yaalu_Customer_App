@@ -9,6 +9,10 @@ export interface UserProfile {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  phone?: string;
+  mobile?: string;
+  nic?: string;
+  deliveryAddress?: string;
   nicNumber?: string;
   city?: string;
   profilePicture?: string;
@@ -84,26 +88,14 @@ class AuthService {
   }
 
   async login(payload: LoginPayload): Promise<AuthResponse> {
-    try {
-      const data = await apiClient.post<AuthResponse>('/auth/login', payload);
-      if (data.accessToken || data.access_token) {
-        this.token = data.accessToken || data.access_token || null;
-      }
-      if (data.user) {
-        this.currentUser = data.user;
-      }
-      return data;
-    } catch (err: any) {
-      console.log('[Dev Fallback]: Backend server offline. Logging in dev mode.');
-      this.currentUser = {
-        email: payload.email,
-        firstName: 'Chamindu',
-        lastName: 'Perera',
-        role: 'CUSTOMER',
-      };
-      this.token = 'mock_dev_access_token_12345';
-      return { user: this.currentUser, accessToken: this.token, message: 'Logged in Dev Mode' };
+    const data = await apiClient.post<AuthResponse>('/auth/login', payload);
+    if (data.accessToken || data.access_token) {
+      this.token = data.accessToken || data.access_token || null;
     }
+    if (data.user) {
+      this.currentUser = data.user;
+    }
+    return data;
   }
 
   async updateProfile(payload: Partial<UserProfile>): Promise<{ user?: UserProfile }> {

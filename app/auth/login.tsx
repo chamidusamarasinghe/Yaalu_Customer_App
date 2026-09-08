@@ -36,7 +36,7 @@ export default function LoginScreen() {
       if (response.user) {
         Alert.alert(
           'Welcome Back! 🎉',
-          `Logged in successfully as ${response.user.firstName || response.user.email}!`,
+          `Logged in successfully as ${response.user.fullName || response.user.name || response.user.firstName || response.user.email}!`,
           [{ text: 'Continue to App', onPress: () => router.replace('/(tabs)') }]
         );
       } else {
@@ -157,17 +157,17 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           {/* Divider */}
-          <View style={styles.dividerRow}>
+          {/* <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>OR</Text>
             <View style={styles.dividerLine} />
-          </View>
+          </View> */}
 
           {/* Google Social Button */}
-          <TouchableOpacity activeOpacity={0.8} style={styles.googleBtn}>
+          {/* <TouchableOpacity activeOpacity={0.8} style={styles.googleBtn}>
             <Ionicons name="logo-google" size={20} color="#DB4437" style={styles.googleIcon} />
             <Text style={styles.googleBtnText}>Continue with Google</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* Footer Link */}

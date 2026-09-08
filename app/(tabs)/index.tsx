@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, StatusBar, Dimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,10 +24,26 @@ interface ShopItem {
 export default function CustomerHomeScreen() {
   const router = useRouter();
 
-  const currentUser = authService.getCurrentUser();
-  const userName = currentUser.firstName
-    ? `${currentUser.firstName} ${currentUser.lastName || ''}`.trim()
-    : 'Valued Customer';
+  const [currentUser, setCurrentUser] = useState(authService.getCurrentUser());
+  
+    React.useEffect(() => {
+      async function loadLatestProfile() {
+        try {
+          const u = authService.getCurrentUser();
+          if (u.id || u.email) {
+            const res = await authService.updateProfile({ id: u.id, email: u.email });
+            if (res && res.user) {
+              setCurrentUser(res.user);
+            }
+          }
+        } catch (e) {
+          // Cached profile
+        }
+      }
+      loadLatestProfile();
+    }, []);
+  
+    const userName = currentUser.fullName || currentUser.name || (currentUser.firstName ? (currentUser.firstName + ' ' + (currentUser.lastName || '')).trim() : 'Customer');
 
   return (
     <View style={styles.container}>

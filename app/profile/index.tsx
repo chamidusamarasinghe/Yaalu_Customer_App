@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -29,10 +29,33 @@ export default function UserProfileScreen() {
     user.fullName || (user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : '')
   );
   const [email, setEmail] = useState(user.email || '');
-  const [phone, setPhone] = useState(user.phoneNumber || '');
-  const [nic, setNic] = useState(user.nicNumber || '');
+  const [phone, setPhone] = useState(user.phoneNumber || user.phone || user.mobile || '');
+  const [nic, setNic] = useState(user.nicNumber || user.nic || '');
   const [city, setCity] = useState(user.city || '');
-  const [address, setAddress] = useState(user.address || '');
+  const [address, setAddress] = useState(user.address || user.deliveryAddress || '');
+
+  useEffect(() => {
+    async function loadLatestProfile() {
+      if (user.id || user.email) {
+        try {
+          const res = await authService.updateProfile({ id: user.id, email: user.email });
+          if (res && res.user) {
+            const u = res.user;
+            setFullName(u.fullName || (u.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : ''));
+            setEmail(u.email || '');
+            setPhone(u.phoneNumber || u.phone || u.mobile || '');
+            setNic(u.nicNumber || u.nic || '');
+            setCity(u.city || '');
+            setAddress(u.address || u.deliveryAddress || '');
+            if (u.profilePicture) setProfilePicture(u.profilePicture);
+          }
+        } catch (e) {
+          console.log('[Profile Screen]: Loaded cached profile details.');
+        }
+      }
+    }
+    loadLatestProfile();
+  }, []);
   const [profilePicture, setProfilePicture] = useState(
     user.profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=250&auto=format&fit=crop&q=80'
   );
@@ -52,6 +75,14 @@ export default function UserProfileScreen() {
       if (res && res.url) {
         setProfilePicture(res.url);
         console.log('[Cloudinary Profile Photo Uploaded]:', res.url);
+          const updateRes = await authService.updateProfile({
+            id: user.id,
+            profilePicture: res.url,
+          });
+          if (updateRes && updateRes.user && updateRes.user.profilePicture) {
+            setProfilePicture(updateRes.user.profilePicture);
+          }
+          Alert.alert('Photo Updated', 'Your profile picture has been saved to the database!');
       }
     } catch (err: any) {
       console.warn('[Cloudinary Profile Photo Warning]:', err?.message || err);
@@ -74,7 +105,7 @@ export default function UserProfileScreen() {
               return;
             }
             const result = await ImagePicker.launchCameraAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              mediaTypes: 'images',
               allowsEditing: true,
               aspect: [1, 1],
               quality: 0.7,
@@ -97,7 +128,7 @@ export default function UserProfileScreen() {
               return;
             }
             const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              mediaTypes: 'images',
               allowsEditing: true,
               aspect: [1, 1],
               quality: 0.7,
