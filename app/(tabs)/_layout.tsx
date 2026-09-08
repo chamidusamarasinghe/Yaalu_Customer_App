@@ -1,7 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 
 export default function TabLayout() {
@@ -9,11 +8,11 @@ export default function TabLayout() {
     <Tabs
       tabBar={(props) => {
         const routeName = props.state.routes[props.state.index]?.name || 'index';
-        const activeTabMap: Record<string, 'HOME' | 'ACTIVITIES' | 'CART' | 'ORDERS'> = {
+        const activeTabMap: Record<string, 'HOME' | 'SHOP' | 'ACTIVITIES' | 'CART' | 'ORDERS'> = {
           index: 'HOME',
-          explore: 'ACTIVITIES',
+          explore: 'SHOP',
           cart: 'CART',
-          orders: 'ORDERS',
+          orders: 'ACTIVITIES',
         };
         return <CustomBottomTabBar activeTab={activeTabMap[routeName] || 'HOME'} />;
       }}
@@ -54,9 +53,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="orders"
         options={{
-          title: 'ORDERS',
+          title: 'ACTIVITIES',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={24} color={color} />
+            <Ionicons name={focused ? 'time' : 'time-outline'} size={24} color={color} />
           ),
         }}
       />

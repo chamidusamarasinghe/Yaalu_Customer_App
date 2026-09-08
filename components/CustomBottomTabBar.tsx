@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-export type TabKey = 'HOME' | 'ACTIVITIES' | 'CART' | 'ORDERS' | 'SHOP' | 'NOTIFICATION' | 'ACCOUNT';
+export type TabKey = 'HOME' | 'SHOP' | 'ACTIVITIES' | 'CART' | 'ORDERS';
 
 interface CustomBottomTabBarProps {
   activeTab?: TabKey;
@@ -12,11 +12,10 @@ interface CustomBottomTabBarProps {
 export default function CustomBottomTabBar({ activeTab = 'HOME' }: CustomBottomTabBarProps) {
   const router = useRouter();
 
-  // Mapping active Tab Keys to the 4 requested footer tabs: Home, Activities, Cart, Orders
   const isHomeActive = activeTab === 'HOME';
+  const isShopActive = activeTab === 'SHOP';
   const isActivitiesActive = activeTab === 'ACTIVITIES';
   const isCartActive = activeTab === 'CART';
-  const isOrdersActive = activeTab === 'ORDERS';
 
   const footerTabs = [
     {
@@ -28,11 +27,19 @@ export default function CustomBottomTabBar({ activeTab = 'HOME' }: CustomBottomT
       isActive: isHomeActive,
     },
     {
+      key: 'SHOP',
+      label: 'Shop',
+      icon: 'storefront',
+      iconOutline: 'storefront-outline',
+      route: '/(tabs)/explore',
+      isActive: isShopActive,
+    },
+    {
       key: 'ACTIVITIES',
       label: 'Activities',
-      icon: 'list',
-      iconOutline: 'list-outline',
-      route: '/(tabs)/explore',
+      icon: 'time',
+      iconOutline: 'time-outline',
+      route: '/(tabs)/orders',
       isActive: isActivitiesActive,
     },
     {
@@ -42,14 +49,6 @@ export default function CustomBottomTabBar({ activeTab = 'HOME' }: CustomBottomT
       iconOutline: 'cart-outline',
       route: '/(tabs)/cart',
       isActive: isCartActive,
-    },
-    {
-      key: 'ORDERS',
-      label: 'Orders',
-      icon: 'receipt',
-      iconOutline: 'receipt-outline',
-      route: '/(tabs)/orders',
-      isActive: isOrdersActive,
     },
   ];
 
