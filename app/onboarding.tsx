@@ -18,21 +18,21 @@ const SLIDES: OnboardingSlide[] = [
     id: '1',
     title: 'Fresh & Quality Products',
     subtitle: 'Carefully selected fresh products for\nyou.',
-    image: require('../assets/images/fresh_products.png'),
+    image: 'https://res.cloudinary.com/yaalu/image/upload/v1788931648/yaalu/products/fresh_products.jpg',
     bgColor: '#F5FAF6',
   },
   {
     id: '2',
     title: 'Fast Delivery To Your\nDoorstep',
     subtitle: 'Quick and reliable delivery at your\nconvenience.',
-    image: require('../assets/images/fast_delivery.png'),
+    image: 'https://res.cloudinary.com/yaalu/image/upload/v1788931657/yaalu/profiles/riders/fast_delivery_rider.jpg',
     bgColor: '#FFFFFF',
   },
   {
     id: '3',
     title: 'Easy & Secure Payments',
     subtitle: 'Multiple secure payment options\navailable.',
-    image: require('../assets/images/secure_payments.png'),
+    image: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&auto=format&fit=crop&q=80',
     bgColor: '#FFFFFF',
   },
 ];
@@ -67,7 +67,7 @@ export default function OnboardingScreen() {
         </View>
 
         <View style={styles.imageContainer}>
-          <Image source={item.image} style={styles.illustrationImage} resizeMode="contain" />
+          <Image source={typeof item.image === 'string' ? { uri: item.image } : item.image} style={styles.illustrationImage} resizeMode="cover" />
         </View>
       </View>
     );

@@ -92,7 +92,7 @@ export default function ProductDetailsScreen() {
           {/* Product Image */}
           <View style={styles.imageGalleryWrapper}>
             <Image
-              source={product.imageUrl ? { uri: product.imageUrl } : require('../../assets/images/red_apples.png')}
+              source={product.imageUrl ? { uri: product.imageUrl } : { uri: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=400&auto=format&fit=crop&q=80' }}
               style={styles.productHeroImage}
               resizeMode="contain"
             />

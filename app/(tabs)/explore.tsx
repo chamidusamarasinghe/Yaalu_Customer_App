@@ -243,7 +243,7 @@ export default function ShopCatalogScreen() {
                   {/* Product Image */}
                   <View style={styles.productImageContainer}>
                     <Image
-                      source={item.imageUrl ? { uri: item.imageUrl } : require('../../assets/images/red_apples.png')}
+                      source={item.imageUrl ? { uri: item.imageUrl } : { uri: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=400&auto=format&fit=crop&q=80' }}
                       style={styles.productImage}
                       resizeMode="cover"
                     />

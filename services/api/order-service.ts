@@ -30,6 +30,7 @@ export interface OrderResponse {
     quantity: number;
     unitPrice: string | number;
     subtotal: string | number;
+    imageUrl?: string;
   }[];
 }
 

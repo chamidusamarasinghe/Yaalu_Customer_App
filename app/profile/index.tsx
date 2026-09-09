@@ -71,7 +71,7 @@ export default function UserProfileScreen() {
     setProfilePicture(localUri);
 
     try {
-      const res = await uploadService.uploadImage(localUri, 'yaalu/profiles');
+      const res = await uploadService.uploadImage(localUri, 'yaalu/profiles/customers');
       if (res && res.url) {
         setProfilePicture(res.url);
         console.log('[Cloudinary Profile Photo Uploaded]:', res.url);

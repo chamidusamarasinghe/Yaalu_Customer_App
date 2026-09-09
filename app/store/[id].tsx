@@ -142,7 +142,7 @@ export default function StoreDetailsScreen() {
           {/* Store Hero Banner */}
           <View style={styles.heroWrapper}>
             <Image
-              source={require('../../assets/images/green_mart_hero.jpg')}
+              source={shop?.shopImage ? { uri: shop.shopImage } : { uri: 'https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=800&auto=format&fit=crop&q=80' }}
               style={styles.heroImage}
               resizeMode="cover"
             />
@@ -218,7 +218,7 @@ export default function StoreDetailsScreen() {
                     onPress={() => handleProductPress(p.id)}
                   >
                     <Image
-                      source={p.imageUrl ? { uri: p.imageUrl } : require('../../assets/images/red_apples.png')}
+                      source={p.imageUrl ? { uri: p.imageUrl } : { uri: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=400&auto=format&fit=crop&q=80' }}
                       style={styles.featuredImage}
                       resizeMode="cover"
                     />

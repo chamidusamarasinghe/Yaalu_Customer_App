@@ -11,6 +11,9 @@ export interface ShopItem {
   ownerEmail?: string;
   ownerPhone?: string;
   businessType?: string;
+  shopImage?: string;
+  bannerUrl?: string;
+  logoUrl?: string;
   createdAt?: string;
 }
 
