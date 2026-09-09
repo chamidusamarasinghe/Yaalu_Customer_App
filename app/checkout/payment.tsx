@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,40 +7,99 @@ import {
   ScrollView,
   StatusBar,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { cardService, UserCard } from '../../services/api/card-service';
+import { cartService } from '../../services/api/cart-service';
+import { authService } from '../../services/api/auth-service';
 
-export default function SelectPaymentScreen() {
+export default function PaymentScreen() {
   const router = useRouter();
-  const [selectedMethod, setSelectedMethod] = useState<'card' | 'cod'>('card');
+  const params = useLocalSearchParams<{
+    selectedMethod?: string;
+  }>();
 
-  const handlePlaceOrder = () => {
-    if (selectedMethod === 'card') {
-      router.push('/checkout/add-card' as any);
-    } else {
-      router.push('/checkout/success' as any);
+  const [selectedMethod, setSelectedMethod] = useState<'card' | 'cod'>(
+    params.selectedMethod === 'card' ? 'card' : 'card'
+  );
+  const [savedCards, setSavedCards] = useState<UserCard[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [loadingCards, setLoadingCards] = useState(true);
+
+  // Dynamic values
+  const cartSubtotal = cartService.getSubtotal();
+  const items = cartService.getItems();
+  const deliveryFeeVal = items.length > 0 ? 250 : 0;
+  const convenienceFeeVal = items.length > 0 ? 30 : 0;
+  const totalVal = cartSubtotal + deliveryFeeVal + convenienceFeeVal;
+
+  useEffect(() => {
+    fetchCards();
+  }, []);
+
+  const fetchCards = async () => {
+    setLoadingCards(true);
+    try {
+      const user = authService.getCurrentUser();
+      const cards = await cardService.getUserCards(user.id);
+      setSavedCards(cards || []);
+      if (cards && cards.length > 0) {
+        const defaultCard = cards.find((c) => c.isDefault) || cards[0];
+        setSelectedCardId(defaultCard.id);
+      }
+    } catch (err) {
+      console.warn('[PaymentScreen fetchCards error]:', err);
+    } finally {
+      setLoadingCards(false);
     }
+  };
+
+  const handleAddNewCard = () => {
+    router.push({
+      pathname: '/checkout/add-card',
+      params: {
+        total: totalVal.toFixed(2),
+      },
+    } as any);
+  };
+
+  const handleConfirmPaymentMethod = () => {
+    if (selectedMethod === 'card' && savedCards.length === 0) {
+      handleAddNewCard();
+      return;
+    }
+
+    const selectedCard = savedCards.find((c) => c.id === selectedCardId);
+    router.push({
+      pathname: '/checkout/checkout-page',
+      params: {
+        selectedMethod,
+        cardId: selectedCard?.id || '',
+        cardMask: selectedCard?.cardNumberMask || '',
+      },
+    } as any);
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
-      {/* Header Bar */}
+      {/* Yellow Header */}
       <View style={styles.header}>
         <TouchableOpacity activeOpacity={0.7} style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color="#061138" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payment</Text>
+        <Text style={styles.headerTitle}>Select Payment Method</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.helpBtn}>
           <Ionicons name="help-circle-outline" size={24} color="#061138" />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.pageTitle}>Select a payment method</Text>
-        <Text style={styles.pageSubtitle}>Choose your preferred way to pay</Text>
+        <Text style={styles.pageTitle}>Payment Option</Text>
+        <Text style={styles.pageSubtitle}>Select your preferred way to pay</Text>
 
         {/* Option 1: Card Payment */}
         <TouchableOpacity
@@ -59,7 +118,7 @@ export default function SelectPaymentScreen() {
                   <Text style={styles.secureTagText}>Secure</Text>
                 </View>
               </View>
-              <Text style={styles.methodSubtext}>Pay securely using your card</Text>
+              <Text style={styles.methodSubtext}>Pay securely using your credit or debit card</Text>
             </View>
             <View style={styles.radioOuter}>
               {selectedMethod === 'card' && <View style={styles.radioInner} />}
@@ -69,9 +128,59 @@ export default function SelectPaymentScreen() {
           {/* Card Brand Logos */}
           <View style={styles.cardLogosRow}>
             <View style={styles.logoChip}><Text style={styles.logoChipText}>VISA</Text></View>
-            <View style={styles.logoChip}><Text style={styles.logoChipText}>MC</Text></View>
+            <View style={styles.logoChip}><Text style={styles.logoChipText}>MASTERCARD</Text></View>
             <View style={styles.logoChip}><Text style={styles.logoChipText}>AMEX</Text></View>
           </View>
+
+          {/* Saved Cards List */}
+          {selectedMethod === 'card' && (
+            <View style={styles.savedCardsContainer}>
+              {loadingCards ? (
+                <ActivityIndicator size="small" color="#D97706" style={{ marginVertical: 10 }} />
+              ) : savedCards.length > 0 ? (
+                <View style={{ gap: 10, marginTop: 12 }}>
+                  <Text style={styles.savedCardsTitle}>Saved Cards in Database:</Text>
+                  {savedCards.map((card) => (
+                    <TouchableOpacity
+                      key={card.id}
+                      activeOpacity={0.8}
+                      style={[
+                        styles.savedCardItem,
+                        selectedCardId === card.id && styles.savedCardItemSelected,
+                      ]}
+                      onPress={() => setSelectedCardId(card.id)}
+                    >
+                      <Ionicons
+                        name={card.cardType === 'MASTERCARD' ? 'card' : 'card-outline'}
+                        size={20}
+                        color="#0036AA"
+                        style={{ marginRight: 10 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.savedCardMask}>{card.cardNumberMask}</Text>
+                        <Text style={styles.savedCardSub}>{card.cardholderName} • Exp: {card.expiryDate}</Text>
+                      </View>
+                      {selectedCardId === card.id && (
+                        <Ionicons name="checkmark-circle" size={20} color="#059669" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.noCardsText}>No saved cards found in database.</Text>
+              )}
+
+              {/* Add New Card Button */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.addCardRowBtn}
+                onPress={handleAddNewCard}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#0036AA" style={{ marginRight: 6 }} />
+                <Text style={styles.addCardRowBtnText}>+ Add New Card</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* Option 2: Cash on Delivery */}
@@ -94,41 +203,26 @@ export default function SelectPaymentScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Order Summary Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardTitle}>Order Summary</Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Sub Total</Text>
-            <Text style={styles.summaryVal}>LKR 1,290.00</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryVal}>LKR 250.00</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Convenience Fee</Text>
-            <Text style={styles.summaryVal}>LKR 30.00</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValBlue}>LKR 1,570.00</Text>
-          </View>
-        </View>
-
         {/* 100% Secure Guarantee Card */}
         <View style={styles.secureGuaranteeCard}>
           <Ionicons name="shield-checkmark-sharp" size={22} color="#059669" style={{ marginRight: 10 }} />
           <View>
             <Text style={styles.guaranteeTitle}>Your payment is 100% secure</Text>
-            <Text style={styles.guaranteeSub}>We do not store your card details</Text>
+            <Text style={styles.guaranteeSub}>Encrypted transaction & SSL protected</Text>
           </View>
         </View>
 
         {/* Primary Action Button */}
-        <TouchableOpacity activeOpacity={0.88} style={styles.placeOrderBtn} onPress={handlePlaceOrder}>
-          <Ionicons name="lock-closed" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.placeOrderBtnText}>Place Order</Text>
+        <TouchableOpacity
+          activeOpacity={0.88}
+          style={styles.placeOrderBtn}
+          onPress={selectedMethod === 'card' && savedCards.length === 0 ? handleAddNewCard : handleConfirmPaymentMethod}
+        >
+          <Text style={styles.placeOrderBtnText}>
+            {selectedMethod === 'card' && savedCards.length === 0
+              ? 'Proceed to Add Card'
+              : 'Use Selected Payment Method'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -209,22 +303,37 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
   },
   logoChipText: { fontSize: 10, fontWeight: '900', color: '#334155' },
-  summaryCard: {
+  savedCardsContainer: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  savedCardsTitle: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 6 },
+  noCardsText: { fontSize: 13, color: '#94A3B8', marginVertical: 8, fontStyle: 'italic' },
+  savedCardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
-    marginVertical: 18,
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  summaryCardTitle: { fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 12 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  summaryLabel: { fontSize: 14, color: '#64748B' },
-  summaryVal: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
-  divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 10 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
-  totalValBlue: { fontSize: 20, fontWeight: '900', color: '#0036AA' },
+  savedCardItemSelected: {
+    borderColor: '#059669',
+    backgroundColor: '#F0FDF4',
+  },
+  savedCardMask: { fontSize: 14, fontWeight: '800', color: '#0F172A' },
+  savedCardSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  addCardRowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+  },
+  addCardRowBtnText: { fontSize: 14, fontWeight: '800', color: '#0036AA' },
   secureGuaranteeCard: {
     flexDirection: 'row',
     alignItems: 'center',
