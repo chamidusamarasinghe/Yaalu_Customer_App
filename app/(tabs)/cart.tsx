@@ -13,20 +13,32 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cartService, CartItem } from '../../services/api/cart-service';
-import { orderService } from '../../services/api/order-service';
 import { authService } from '../../services/api/auth-service';
+import { cardService, UserCard } from '../../services/api/card-service';
 
 export default function CartScreen() {
   const router = useRouter();
-  const [items, setItems] = useState<CartItem[]>(cartService.getItems());
-  const [submitting, setSubmitting] = useState<boolean>(false);
+
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'card'>('cod');
+  const [activeCard, setActiveCard] = useState<UserCard | null>(null);
 
   useEffect(() => {
-    // Subscribe to dynamic cart updates
+    setItems(cartService.getItems());
     const unsubscribe = cartService.subscribe((updatedItems) => {
       setItems(updatedItems);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const user = authService.getCurrentUser();
+    cardService.getUserCards(user.id).then((cards) => {
+      if (cards && cards.length > 0) {
+        const defaultCard = cards.find((c) => c.isDefault) || cards[0];
+        setActiveCard(defaultCard);
+      }
+    });
   }, []);
 
   const updateQuantity = (productId: string, delta: number) => {
@@ -37,93 +49,71 @@ export default function CartScreen() {
     cartService.removeItem(productId);
   };
 
-  const clearAll = () => {
-    cartService.clearCart();
+  const handleClearCart = () => {
+    if (items.length === 0) return;
+    Alert.alert('Clear Cart', 'Are you sure you want to remove all items from your cart?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear All', style: 'destructive', onPress: () => cartService.clearCart() },
+    ]);
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.priceValue * item.quantity, 0);
+  const subtotal = cartService.getSubtotal();
   const deliveryFee = items.length > 0 ? 250 : 0;
   const convenienceFee = items.length > 0 ? 30 : 0;
   const total = subtotal + deliveryFee + convenienceFee;
 
-  const handleCheckout = async () => {
-    if (items.length === 0) return;
+  const handleOpenPaymentSelect = () => {
+    router.push({
+      pathname: '/checkout/payment',
+      params: {
+        subtotal: subtotal.toFixed(2),
+        deliveryFee: deliveryFee.toFixed(2),
+        convenienceFee: convenienceFee.toFixed(2),
+        total: total.toFixed(2),
+        selectedMethod: paymentMethod,
+      },
+    } as any);
+  };
 
-    setSubmitting(true);
-    try {
-      const user = authService.getUser();
-      const customerId = user?.id || 'guest_user';
-      const customerName = user?.fullName || 'Customer';
-
-      // Group items for order payload
-      const orderPayload = {
-        merchantId: items[0]?.merchantId || 'default',
-        customerId,
-        customerName,
-        notes: 'Customer App Mobile Order',
-        items: items.map((i) => ({
-          productId: i.productId,
-          productName: i.title,
-          quantity: i.quantity,
-          unitPrice: i.priceValue,
-        })),
-      };
-
-      const createdOrder = await orderService.createOrder(orderPayload);
-      cartService.clearCart();
-
-      Alert.alert(
-        'Order Placed Successfully!',
-        `Order #${createdOrder.id?.substring(0, 8) || 'YAALU'} has been saved to your account.`,
-        [
-          {
-            text: 'View Activities',
-            onPress: () => router.push('/(tabs)/orders' as any),
-          },
-        ]
-      );
-    } catch (err: any) {
-      console.warn('[Checkout Error]:', err);
-      Alert.alert('Checkout Failed', err?.message || 'Unable to place order. Please try again.');
-    } finally {
-      setSubmitting(false);
+  const handleProceedToCheckout = () => {
+    if (items.length === 0) {
+      Alert.alert('Empty Cart', 'Please add products to your cart before proceeding to checkout.');
+      return;
     }
+    router.push('/checkout/checkout-page' as any);
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
-      {/* Header Bar */}
+      {/* Top Header */}
       <View style={styles.header}>
         <TouchableOpacity activeOpacity={0.7} style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color="#061138" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Your Cart</Text>
-        {items.length > 0 ? (
-          <TouchableOpacity activeOpacity={0.7} style={styles.clearBtn} onPress={clearAll}>
-            <View style={styles.clearBadge}>
-              <Ionicons name="trash-outline" size={20} color="#EF4444" />
-            </View>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 36 }} />
-        )}
+        <TouchableOpacity activeOpacity={0.7} style={styles.clearBtn} onPress={handleClearCart}>
+          <View style={styles.clearBadge}>
+            <Ionicons name="trash-outline" size={20} color="#E11D48" />
+          </View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {items.length === 0 ? (
-          /* Empty Cart State */
           <View style={styles.emptyContainer}>
-            <Ionicons name="cart-outline" size={72} color="#CBD5E1" style={{ marginBottom: 16 }} />
-            <Text style={styles.emptyTitle}>No products in the cart</Text>
-            <Text style={styles.emptySubtitle}>Add items from your favorite shops to start your order.</Text>
+            <Ionicons name="cart-outline" size={80} color="#CBD5E1" style={{ marginBottom: 16 }} />
+            <Text style={styles.emptyTitle}>No products in your cart</Text>
+            <Text style={styles.emptySubtitle}>
+              Looks like you haven't added any items yet. Explore our fresh harvest and market items!
+            </Text>
             <TouchableOpacity
               activeOpacity={0.88}
               style={styles.shopNowBtn}
-              onPress={() => router.push('/(tabs)/explore' as any)}
+              onPress={() => router.push('/(tabs)/explore')}
             >
-              <Text style={styles.shopNowBtnText}>Shop Now</Text>
+              <Text style={styles.shopNowBtnText}>Continue Shopping</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -133,18 +123,20 @@ export default function CartScreen() {
               {items.map((item) => (
                 <View key={item.id} style={styles.cartItemCard}>
                   <View style={styles.itemImageContainer}>
-                    <Image
-                      source={item.imageUrl ? { uri: item.imageUrl } : require('../../assets/images/red_apples.png')}
-                      style={styles.itemImage}
-                      resizeMode="cover"
-                    />
+                    {item.imageUrl ? (
+                      <Image source={{ uri: item.imageUrl }} style={styles.itemImage} resizeMode="cover" />
+                    ) : (
+                      <Ionicons name="cube-outline" size={32} color="#94A3B8" />
+                    )}
                   </View>
 
                   <View style={styles.itemInfo}>
                     <View style={styles.itemTitleRow}>
-                      <Text style={styles.itemTitle}>{item.title}</Text>
-                      <TouchableOpacity activeOpacity={0.7} onPress={() => removeItem(item.productId)}>
-                        <Ionicons name="close" size={18} color="#94A3B8" />
+                      <Text style={styles.itemTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <TouchableOpacity onPress={() => removeItem(item.productId)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Ionicons name="close-circle" size={20} color="#94A3B8" />
                       </TouchableOpacity>
                     </View>
 
@@ -204,36 +196,44 @@ export default function CartScreen() {
             </View>
 
             {/* Payment Method Selector */}
-            <TouchableOpacity activeOpacity={0.88} style={styles.paymentMethodCard}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.paymentMethodCard}
+              onPress={handleOpenPaymentSelect}
+            >
               <View style={styles.paymentIconSquare}>
-                <Ionicons name="wallet-outline" size={22} color="#D97706" />
+                <Ionicons
+                  name={paymentMethod === 'card' ? 'card-outline' : 'wallet-outline'}
+                  size={22}
+                  color="#D97706"
+                />
               </View>
 
               <View style={styles.paymentInfoCol}>
                 <Text style={styles.paymentTitle}>Payment Method</Text>
-                <Text style={styles.paymentSubtext}>Cash on Delivery</Text>
+                <Text style={styles.paymentSubtext}>
+                  {paymentMethod === 'card'
+                    ? activeCard
+                      ? `Card (${activeCard.cardNumberMask})`
+                      : 'Card Payment'
+                    : 'Cash on Delivery'}
+                </Text>
               </View>
 
               <View style={styles.changeLinkRow}>
-                <Text style={styles.changeLinkText}>Active</Text>
+                <Text style={styles.changeLinkText}>Change</Text>
+                <Ionicons name="chevron-forward" size={16} color="#059669" style={{ marginLeft: 2 }} />
               </View>
             </TouchableOpacity>
 
-            {/* Checkout Action Button */}
+            {/* Proceed to Checkout Action Button */}
             <TouchableOpacity
               activeOpacity={0.88}
               style={styles.proceedBtn}
-              onPress={handleCheckout}
-              disabled={submitting}
+              onPress={handleProceedToCheckout}
             >
-              {submitting ? (
-                <Text style={styles.proceedBtnText}>Saving Order to Database...</Text>
-              ) : (
-                <>
-                  <Ionicons name="lock-closed" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.proceedBtnText}>Place Order (LKR {total.toFixed(2)})</Text>
-                </>
-              )}
+              <Text style={styles.proceedBtnText}>Proceed to Checkout (LKR {total.toFixed(2)})</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           </>
         )}

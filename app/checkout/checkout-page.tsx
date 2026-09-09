@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,51 +8,126 @@ import {
   Image,
   StatusBar,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import InteractiveMap from '../../components/InteractiveMap';
-
-interface CheckoutItem {
-  id: string;
-  title: string;
-  price: number;
-  quantity: number;
-  image: any;
-}
-
-const CHECKOUT_ITEMS: CheckoutItem[] = [
-  {
-    id: '1',
-    title: 'Red Apple (1kg)',
-    price: 650,
-    quantity: 1,
-    image: require('../../assets/images/red_apples.png'),
-  },
-  {
-    id: '2',
-    title: 'Banana (1kg)',
-    price: 350,
-    quantity: 1,
-    image: require('../../assets/images/bananas.png'),
-  },
-  {
-    id: '3',
-    title: 'Fresh Milk (1L)',
-    price: 290,
-    quantity: 1,
-    image: require('../../assets/images/fresh_milk.png'),
-  },
-];
+import { cartService, CartItem } from '../../services/api/cart-service';
+import { orderService } from '../../services/api/order-service';
+import { authService, UserProfile } from '../../services/api/auth-service';
+import { cardService, UserCard } from '../../services/api/card-service';
 
 export default function CheckoutScreen() {
   const router = useRouter();
-  const [items, setItems] = useState<CheckoutItem[]>(CHECKOUT_ITEMS);
+  const params = useLocalSearchParams<{
+    selectedMethod?: string;
+    cardId?: string;
+    cardMask?: string;
+  }>();
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = 250;
-  const convenienceFee = 30;
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [user, setUser] = useState<UserProfile>({});
+  const [selectedMethod, setSelectedMethod] = useState<'card' | 'cod'>(
+    params.selectedMethod === 'card' ? 'card' : 'cod'
+  );
+  const [activeCard, setActiveCard] = useState<UserCard | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setItems(cartService.getItems());
+    const unsubscribe = cartService.subscribe((updatedItems) => {
+      setItems(updatedItems);
+    });
+    setUser(authService.getCurrentUser());
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (params.selectedMethod) {
+      setSelectedMethod(params.selectedMethod === 'card' ? 'card' : 'cod');
+    }
+  }, [params.selectedMethod]);
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    cardService.getUserCards(currentUser.id).then((cards) => {
+      if (cards && cards.length > 0) {
+        if (params.cardId) {
+          const match = cards.find((c) => c.id === params.cardId);
+          setActiveCard(match || cards[0]);
+        } else {
+          const defaultCard = cards.find((c) => c.isDefault) || cards[0];
+          setActiveCard(defaultCard);
+        }
+      }
+    });
+  }, [params.cardId]);
+
+  const subtotal = items.reduce((sum, item) => sum + item.priceValue * item.quantity, 0);
+  const deliveryFee = items.length > 0 ? 250 : 0;
+  const convenienceFee = items.length > 0 ? 30 : 0;
   const total = subtotal + deliveryFee + convenienceFee;
+
+  const updateQuantity = (productId: string, delta: number) => {
+    cartService.updateQuantity(productId, delta);
+  };
+
+  const removeItem = (productId: string) => {
+    cartService.removeItem(productId);
+  };
+
+  const handleConfirmOrder = async () => {
+    if (items.length === 0) {
+      Alert.alert('Empty Order', 'There are no products in your order. Please add items to cart.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const currentUser = authService.getCurrentUser();
+      const firstItem = items[0];
+
+      const paymentNote = selectedMethod === 'card'
+        ? `PAID TO SHOP via Card (${params.cardMask || activeCard?.cardNumberMask || 'VISA'})`
+        : 'Cash on Delivery';
+
+      const orderData = await orderService.createOrder({
+        merchantId: firstItem?.merchantId || 'default',
+        customerId: currentUser.id || 'cust_dev_1',
+        customerName: currentUser.fullName || currentUser.name || 'Valued Customer',
+        notes: paymentNote,
+        items: items.map((item) => ({
+          productId: item.productId,
+          productName: item.title,
+          quantity: item.quantity,
+          unitPrice: item.priceValue,
+        })),
+      });
+
+      console.log('[Order Confirmed & Saved to DB]:', orderData);
+
+      // Clear cart items
+      cartService.clearCart();
+
+      // Open Success Screen
+      router.push({
+        pathname: '/checkout/success',
+        params: {
+          total: total.toFixed(2),
+          orderId: orderData?.id || '',
+        },
+      } as any);
+    } catch (err: any) {
+      console.warn('[Confirm Order Error]:', err);
+      Alert.alert('Order Placement Failed', 'Could not complete your order payment. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const deliveryAddressStr = user.deliveryAddress || user.address || 'No. 42, Green Avenue, Colombo 03';
 
   return (
     <View style={styles.container}>
@@ -82,11 +157,11 @@ export default function CheckoutScreen() {
           <View style={{ borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
             <InteractiveMap
               height={130}
-              center={{ latitude: 6.908, longitude: 79.870 }}
+              center={{ latitude: user.latitude || 6.908, longitude: user.longitude || 79.870 }}
               zoom={15}
               interactivePicker={false}
               markers={[
-                { id: 'deliv', latitude: 6.908, longitude: 79.870, title: 'No. 42, Green Avenue', type: 'pickup' }
+                { id: 'deliv', latitude: user.latitude || 6.908, longitude: user.longitude || 79.870, title: deliveryAddressStr, type: 'pickup' }
               ]}
             />
           </View>
@@ -96,21 +171,20 @@ export default function CheckoutScreen() {
               <Ionicons name="location" size={20} color="#059669" />
             </View>
             <View style={styles.addressCol}>
-              <Text style={styles.addressName}>Home (OpenStreetMap Verified)</Text>
-              <Text style={styles.addressSub}>
-                No. 42, Green Avenue, Colombo 07, Sri Lanka
-              </Text>
+              <Text style={styles.addressName}>Delivery Location (OpenStreetMap Verified)</Text>
+              <Text style={styles.addressSub}>{deliveryAddressStr}</Text>
+
               <View style={styles.estRow}>
                 <Ionicons name="time-outline" size={14} color="#D97706" style={{ marginRight: 4 }} />
-                <Text style={styles.estText}>Est. Delivery: 20 – 30 mins</Text>
+                <Text style={styles.estText}>Estimated delivery time: 20-30 mins</Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Order Summary Section */}
+        {/* Order Items Section */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Order Summary</Text>
+          <Text style={styles.sectionTitle}>Order Items</Text>
           <View style={styles.itemBadge}>
             <Text style={styles.itemBadgeText}>{items.length} Items</Text>
           </View>
@@ -119,15 +193,25 @@ export default function CheckoutScreen() {
         <View style={styles.itemsList}>
           {items.map((item) => (
             <View key={item.id} style={styles.itemCard}>
-              <Image source={item.image} style={styles.itemImage} resizeMode="contain" />
+              {item.imageUrl ? (
+                <Image source={{ uri: item.imageUrl }} style={styles.itemImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.itemImagePlaceholder}>
+                  <Ionicons name="cube-outline" size={26} color="#94A3B8" />
+                </View>
+              )}
               <View style={styles.itemInfo}>
                 <Text style={styles.itemTitle}>{item.title}</Text>
-                <Text style={styles.itemPrice}>LKR {item.price.toFixed(2)}</Text>
+                <Text style={styles.itemPrice}>{item.unitPriceStr}</Text>
                 <View style={styles.qtyContainer}>
-                  <Text style={styles.qtyText}>-  {item.quantity}  +</Text>
+                  <Text style={styles.qtyText}>Qty: {item.quantity}</Text>
                 </View>
               </View>
-              <TouchableOpacity activeOpacity={0.7} style={styles.trashBtn}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.trashBtn}
+                onPress={() => removeItem(item.productId)}
+              >
                 <Ionicons name="trash-outline" size={18} color="#EF4444" />
               </TouchableOpacity>
             </View>
@@ -146,11 +230,21 @@ export default function CheckoutScreen() {
         >
           <View style={styles.paymentRow}>
             <View style={styles.walletSquare}>
-              <Ionicons name="cash-outline" size={22} color="#D97706" />
+              <Ionicons
+                name={selectedMethod === 'card' ? 'card-outline' : 'cash-outline'}
+                size={22}
+                color="#D97706"
+              />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.paymentTitle}>Cash on Delivery</Text>
-              <Text style={styles.paymentSub}>Pay when your order arrives</Text>
+              <Text style={styles.paymentTitle}>
+                {selectedMethod === 'card' ? 'Card Payment' : 'Cash on Delivery'}
+              </Text>
+              <Text style={styles.paymentSub}>
+                {selectedMethod === 'card'
+                  ? params.cardMask || activeCard?.cardNumberMask || 'Pay via Credit/Debit Card'
+                  : 'Pay when your order arrives'}
+              </Text>
             </View>
             <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/checkout/payment' as any)}>
               <Text style={styles.changeGreenText}>Change</Text>
@@ -193,19 +287,19 @@ export default function CheckoutScreen() {
             <View style={styles.trustCircle}>
               <Ionicons name="shield-checkmark-outline" size={18} color="#059669" />
             </View>
-            <Text style={styles.trustText}>100% Secure{'\n'}Payments</Text>
+            <Text style={styles.trustText}>100% Secure Payments</Text>
           </View>
           <View style={styles.trustItem}>
             <View style={styles.trustCircle}>
               <Ionicons name="bus-outline" size={18} color="#059669" />
             </View>
-            <Text style={styles.trustText}>Fast Doorstep{'\n'}Delivery</Text>
+            <Text style={styles.trustText}>Fast Doorstep Delivery</Text>
           </View>
           <View style={styles.trustItem}>
             <View style={styles.trustCircle}>
               <Ionicons name="star-outline" size={18} color="#059669" />
             </View>
-            <Text style={styles.trustText}>Best Quality{'\n'}Guaranteed</Text>
+            <Text style={styles.trustText}>Best Quality Guaranteed</Text>
           </View>
         </View>
 
@@ -213,10 +307,17 @@ export default function CheckoutScreen() {
         <TouchableOpacity
           activeOpacity={0.88}
           style={styles.confirmBtn}
-          onPress={() => router.push('/checkout/success' as any)}
+          onPress={handleConfirmOrder}
+          disabled={submitting}
         >
-          <Ionicons name="bag-handle-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.confirmBtnText}>Confirm Order</Text>
+          {submitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="bag-handle-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.confirmBtnText}>Confirm Order (LKR {total.toFixed(2)})</Text>
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -281,7 +382,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  itemImage: { width: 56, height: 56, marginRight: 12 },
+  itemImage: { width: 56, height: 56, borderRadius: 12, marginRight: 12 },
+  itemImagePlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   itemInfo: { flex: 1 },
   itemTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
   itemPrice: { fontSize: 14, fontWeight: '800', color: '#059669', marginVertical: 2 },

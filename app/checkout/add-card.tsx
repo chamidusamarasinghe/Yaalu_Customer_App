@@ -10,28 +10,78 @@ import {
   Switch,
   StatusBar,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { cardService } from '../../services/api/card-service';
+import { authService } from '../../services/api/auth-service';
 
 export default function AddCardScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ total?: string }>();
 
-  const [cardName, setCardName] = useState('John Doe');
+  const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv, setCvv] = useState('');
   const [saveCard, setSaveCard] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleAddCardAndPay = () => {
-    router.push('/checkout/success' as any);
+  const handleAddCardAndPay = async () => {
+    const cleanCardNumber = cardNumber.replace(/\s+/g, '');
+
+    if (!cardName.trim()) {
+      Alert.alert('Validation Error', 'Please enter the cardholder name.');
+      return;
+    }
+    if (!cleanCardNumber || cleanCardNumber.length < 12) {
+      Alert.alert('Validation Error', 'Please enter a valid card number (at least 12 digits).');
+      return;
+    }
+    if (!expiryDate || !expiryDate.includes('/')) {
+      Alert.alert('Validation Error', 'Please enter a valid expiry date (MM/YY).');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const user = authService.getCurrentUser();
+
+      // 1. Save user card to PostgreSQL database via API
+      const savedCard = await cardService.saveCard({
+        userId: user.id || 'cust_dev_1',
+        cardholderName: cardName.trim(),
+        cardNumber: cleanCardNumber,
+        expiryDate: expiryDate.trim(),
+        isDefault: saveCard,
+      });
+
+      console.log('[Card Saved to DB]:', savedCard);
+
+      // 2. Redirect to Checkout Page with saved card selected
+      router.push({
+        pathname: '/checkout/checkout-page',
+        params: {
+          selectedMethod: 'card',
+          cardId: savedCard.id,
+          cardMask: savedCard.cardNumberMask,
+        },
+      } as any);
+    } catch (err: any) {
+      console.warn('[AddCard Error]:', err);
+      Alert.alert('Payment Error', 'Failed to save card. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
-      {/* Yellow Top Header */}
+      {/* Yellow Header */}
       <View style={styles.header}>
         <TouchableOpacity activeOpacity={0.7} style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color="#061138" />
@@ -56,7 +106,7 @@ export default function AddCardScreen() {
           <View style={styles.inputBox}>
             <TextInput
               style={styles.input}
-              placeholder="John Doe"
+              placeholder="e.g. Chamindu Silva"
               placeholderTextColor="#94A3B8"
               value={cardName}
               onChangeText={setCardName}
@@ -69,7 +119,7 @@ export default function AddCardScreen() {
           <View style={styles.inputBox}>
             <TextInput
               style={styles.input}
-              placeholder="0000 0000 0000 0000"
+              placeholder="4242 4242 4242 4242"
               placeholderTextColor="#94A3B8"
               keyboardType="number-pad"
               maxLength={19}
@@ -119,7 +169,7 @@ export default function AddCardScreen() {
         <View style={styles.saveCardBox}>
           <View style={styles.saveCardLeft}>
             <Ionicons name="shield-checkmark-outline" size={20} color="#059669" style={{ marginRight: 10 }} />
-            <Text style={styles.saveCardText}>Save card for future payments</Text>
+            <Text style={styles.saveCardText}>Save card to database for future payments</Text>
           </View>
           <Switch
             value={saveCard}
@@ -136,9 +186,20 @@ export default function AddCardScreen() {
         </View>
 
         {/* Primary Action Button */}
-        <TouchableOpacity activeOpacity={0.88} style={styles.addCardBtn} onPress={handleAddCardAndPay}>
-          <Ionicons name="card" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.addCardBtnText}>Add Card & Pay</Text>
+        <TouchableOpacity
+          activeOpacity={0.88}
+          style={styles.addCardBtn}
+          onPress={handleAddCardAndPay}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="card" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.addCardBtnText}>Add Card & Save</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <Text style={styles.legalSubtext}>
@@ -208,8 +269,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginVertical: 10,
   },
-  saveCardLeft: { flexDirection: 'row', alignItems: 'center' },
-  saveCardText: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  saveCardLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 },
+  saveCardText: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
   secureSubtextRow: {
     flexDirection: 'row',
     justifyContent: 'center',

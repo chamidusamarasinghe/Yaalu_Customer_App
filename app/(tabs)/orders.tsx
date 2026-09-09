@@ -27,7 +27,7 @@ export default function ActivitiesScreen() {
       const user = authService.getUser();
       const customerId = user?.id;
       const fetchedOrders = await orderService.getCustomerOrders(customerId);
-      setOrders(fetchedOrders);
+      setOrders(fetchedOrders || []);
     } catch (err) {
       console.warn('[ActivitiesScreen Load Error]:', err);
     } finally {
@@ -58,6 +58,20 @@ export default function ActivitiesScreen() {
     }
     return true;
   });
+
+  const handleCardPress = (orderId: string) => {
+    router.push({
+      pathname: '/orders/details',
+      params: { orderId },
+    } as any);
+  };
+
+  const handleStatusPress = (orderId: string) => {
+    router.push({
+      pathname: '/orders/status',
+      params: { orderId },
+    } as any);
+  };
 
   return (
     <View style={styles.container}>
@@ -123,7 +137,12 @@ export default function ActivitiesScreen() {
             const totalVal = typeof order.totalAmount === 'number' ? order.totalAmount : parseFloat(order.totalAmount as string) || 0;
 
             return (
-              <View key={order.id} style={styles.orderCard}>
+              <TouchableOpacity
+                key={order.id}
+                activeOpacity={0.88}
+                style={styles.orderCard}
+                onPress={() => handleCardPress(order.id)}
+              >
                 <View style={styles.cardHeaderRow}>
                   <View style={[styles.iconCircle, { backgroundColor: '#E6F4EA' }]}>
                     <Ionicons name="cart-outline" size={22} color="#059669" />
@@ -131,7 +150,7 @@ export default function ActivitiesScreen() {
 
                   <View style={styles.cardMainCol}>
                     <Text style={styles.orderIdText}>Order #{order.id.substring(0, 8).toUpperCase()}</Text>
-                    <Text style={styles.storeNameText}>{order.customerName || 'Shop Order'}</Text>
+                    <Text style={styles.storeNameText}>{order.customerName || 'Fresh Harvest Shop'}</Text>
                   </View>
 
                   <View style={[styles.statusBadge, { backgroundColor: order.status === 'delivered' ? '#DCFCE7' : '#FEF3C7' }]}>
@@ -141,11 +160,25 @@ export default function ActivitiesScreen() {
                   </View>
                 </View>
 
-                <Text style={styles.summaryText}>
-                  {itemsCount} {itemsCount === 1 ? 'Item' : 'Items'} ? LKR {totalVal.toFixed(2)}
-                </Text>
-                <Text style={styles.dateText}>{dateStr}</Text>
-              </View>
+                <View style={styles.summaryBottomRow}>
+                  <View>
+                    <Text style={styles.summaryText}>
+                      {itemsCount} {itemsCount === 1 ? 'Item' : 'Items'} • LKR {totalVal.toFixed(2)}
+                    </Text>
+                    <Text style={styles.dateText}>{dateStr}</Text>
+                  </View>
+
+                  {/* Section Order Status Button */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.statusBtn}
+                    onPress={() => handleStatusPress(order.id)}
+                  >
+                    <Ionicons name="time-outline" size={15} color="#059669" style={{ marginRight: 4 }} />
+                    <Text style={styles.statusBtnText}>Order Status</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
             );
           })
         )}
@@ -229,11 +262,16 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   iconCircle: {
     width: 44,
@@ -267,15 +305,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+  summaryBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 10,
+  },
   summaryText: {
     fontSize: 13,
-    color: '#64748B',
-    marginLeft: 56,
+    fontWeight: '700',
+    color: '#334155',
     marginBottom: 2,
   },
   dateText: {
     fontSize: 12,
     color: '#94A3B8',
-    marginLeft: 56,
+  },
+  statusBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  statusBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
   },
 });
