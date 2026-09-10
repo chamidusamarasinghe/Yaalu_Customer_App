@@ -8,7 +8,7 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap from '../../components/InteractiveMap';
@@ -17,10 +17,14 @@ const { width, height } = Dimensions.get('window');
 
 export default function ConfirmPickupScreen() {
   const router = useRouter();
+  const { mode, tripCategory } = useLocalSearchParams<{ mode?: string; tripCategory?: string }>();
   const [pickupCoords, setPickupCoords] = useState({ latitude: 6.8413, longitude: 79.9654 });
 
   const handleConfirmPickup = () => {
-    router.push('/rides/select-vehicle' as any);
+    router.push({
+      pathname: '/rides/verify-start' as any,
+      params: { tripCategory: tripCategory || 'ONE_WAY' }
+    });
   };
 
   return (
@@ -292,3 +296,4 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 });
+

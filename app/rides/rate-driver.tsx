@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   StyleSheet,
   View,
@@ -8,22 +8,32 @@ import {
   Image,
   StatusBar,
   Platform,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+  Alert,
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import CustomBottomTabBar from "../../components/CustomBottomTabBar";
+import { rideService } from "../../services/api/ride-service";
 
-const COMPLIMENTS = [
-  { id: '1', label: 'Great Conversation', icon: 'chatbubbles-outline' },
-  { id: '2', label: 'Clean Car', icon: 'car-sport-outline' },
-  { id: '3', label: 'Smooth Driving', icon: 'shield-checkmark-outline' },
-  { id: '4', label: 'On Time Pickup', icon: 'time-outline' },
+interface Compliment {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+const COMPLIMENTS: Compliment[] = [
+  { id: "clean", label: "Clean Car", icon: "sparkles" },
+  { id: "route", label: "Great Route", icon: "map" },
+  { id: "polite", label: "Polite & Kind", icon: "happy" },
+  { id: "safe", label: "Safe Driving", icon: "shield-checkmark" },
 ];
 
 export default function RateDriverScreen() {
   const router = useRouter();
-
-  const [rating, setRating] = useState<number>(0);
-  const [selectedCompliments, setSelectedCompliments] = useState<string[]>([]);
+  const { rideRequestId, rating: initialRating, comments, tripCategory } = useLocalSearchParams<{ rideRequestId?: string; rating?: string; comments?: string; tripCategory?: string }>();
+  const isReturnTrip = tripCategory === 'RETURN';
+  const [rating, setRating] = useState<number>(initialRating ? parseInt(initialRating, 10) : 5);
+  const [selectedCompliments, setSelectedCompliments] = useState<string[]>(["clean", "safe"]);
 
   const toggleCompliment = (id: string) => {
     setSelectedCompliments((prev) =>
@@ -31,21 +41,38 @@ export default function RateDriverScreen() {
     );
   };
 
-  const handleDone = () => {
-    router.push('/rides/trip-completed' as any);
+  const handleDone = async () => {
+    const rId = rideRequestId || 'RIDE-DEMO-1001';
+    await rideService.submitFeedback({
+      rideRequestId: rId,
+      rating,
+      compliments: selectedCompliments,
+      comment: comments,
+    });
+
+    Alert.alert("Feedback Submitted", "Thank you for rating your experience with YAALU!", [
+      { text: "OK", onPress: () => router.push("/(tabs)") },
+    ]);
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
-      {/* Top Header Row with Skip Button */}
+      {/* Top Yellow Header Bar */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }} />
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={styles.backBtn}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={26} color="#061138" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Rate & Feedback</Text>
         <TouchableOpacity
           activeOpacity={0.7}
           style={styles.skipBtn}
-          onPress={handleDone}
+          onPress={() => router.push("/(tabs)")}
         >
           <Text style={styles.skipBtnText}>Skip</Text>
         </TouchableOpacity>
@@ -60,7 +87,7 @@ export default function RateDriverScreen() {
           <View style={styles.avatarWrapper}>
             <Image
               source={{
-                uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=250&auto=format&fit=crop&q=80',
+                uri: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=250&auto=format&fit=crop&q=80",
               }}
               style={styles.avatarImage}
             />
@@ -70,7 +97,8 @@ export default function RateDriverScreen() {
             </View>
           </View>
 
-          <Text style={styles.driverName}>Arunasalam</Text>
+          <Text style={styles.driverName}>Ravi S.</Text>
+          <Text style={styles.vehicleSubtitle}>Toyota Prius - White (WP CAH-1234)</Text>
         </View>
 
         {/* Rate Driver Section */}
@@ -90,9 +118,9 @@ export default function RateDriverScreen() {
                 style={{ padding: 6 }}
               >
                 <Ionicons
-                  name={starIdx <= rating ? 'star' : 'star-outline'}
+                  name={starIdx <= rating ? "star" : "star-outline"}
                   size={36}
-                  color={starIdx <= rating ? '#F59E0B' : '#CBD5E1'}
+                  color={starIdx <= rating ? "#F59E0B" : "#CBD5E1"}
                 />
               </TouchableOpacity>
             ))}
@@ -116,7 +144,7 @@ export default function RateDriverScreen() {
                   <Ionicons
                     name={item.icon as keyof typeof Ionicons.glyphMap}
                     size={16}
-                    color={isSelected ? '#FFFFFF' : '#475569'}
+                    color={isSelected ? "#FFFFFF" : "#475569"}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.complimentText, isSelected && styles.complimentTextSelected]}>
@@ -128,27 +156,46 @@ export default function RateDriverScreen() {
           </View>
         </View>
 
-        {/* Fare Details Card */}
+        {/* Fare & Download Receipt Section */}
         <View style={styles.fareCard}>
-          <Text style={styles.fareCardTitle}>Fare Details</Text>
+          <Text style={styles.fareCardTitle}>Trip Fare Summary</Text>
 
           <View style={styles.fareRow}>
-            <Text style={styles.fareLabel}>Estimated Fare</Text>
-            <Text style={styles.fareAmount}>LKR 312.80</Text>
+            <Text style={styles.fareLabel}>Trip Type</Text>
+            <Text style={{ fontSize: 13, fontWeight: "900", color: isReturnTrip ? "#D97706" : "#2563EB" }}>
+              {isReturnTrip ? "Return Trip 🔄" : "One Way ➔"}
+            </Text>
           </View>
 
-          {/* Done Action Button */}
+          <View style={styles.fareRow}>
+            <Text style={styles.fareLabel}>Final Accepted Bidding Fare</Text>
+            <Text style={styles.fareAmount}>LKR 1,350.00</Text>
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.downloadReceiptBtn}
+            onPress={() => Alert.alert("Receipt Downloaded", "Trip receipt saved to your device as PDF.")}
+          >
+            <Ionicons name="download-outline" size={18} color="#2563EB" style={{ marginRight: 8 }} />
+            <Text style={styles.downloadReceiptText}>Download Receipt PDF</Text>
+          </TouchableOpacity>
+
+          {/* Submit Action Button */}
           <TouchableOpacity
             activeOpacity={0.88}
             style={[styles.doneBtn, rating > 0 && styles.doneBtnActive]}
             onPress={handleDone}
           >
             <Text style={[styles.doneBtnText, rating > 0 && styles.doneBtnTextActive]}>
-              Done
+              Submit Rating & Return Home
             </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Yellow Bottom Footer Navigation Bar */}
+      <CustomBottomTabBar activeTab="HOME" />
     </View>
   );
 }
@@ -156,90 +203,109 @@ export default function RateDriverScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: "#F8FAFC",
   },
   header: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 20,
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FDB813",
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 28) + 4 : 12,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#061138",
   },
   skipBtn: {
     paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
   },
   skipBtnText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#2563EB',
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#061138",
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 40,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === "ios" ? 100 : 80,
   },
   driverHero: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   avatarWrapper: {
-    position: 'relative',
+    position: "relative",
     marginBottom: 12,
   },
   avatarImage: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   ratingBadge: {
-    position: 'absolute',
+    position: "absolute",
     bottom: -8,
-    alignSelf: 'center',
-    backgroundColor: '#FFFFFF',
+    alignSelf: "center",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 3,
     borderWidth: 1,
-    borderColor: '#FEF3C7',
+    borderColor: "#FEF3C7",
   },
   ratingBadgeText: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: "800",
+    color: "#0F172A",
   },
   driverName: {
     fontSize: 20,
-    fontWeight: '900',
-    color: '#0F172A',
+    fontWeight: "900",
+    color: "#0F172A",
     marginTop: 4,
   },
+  vehicleSubtitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 2,
+  },
   ratingSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   ratingTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A',
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0F172A",
     marginBottom: 6,
   },
   ratingSubtext: {
     fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
+    color: "#64748B",
+    textAlign: "center",
     marginBottom: 14,
   },
   starsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
   },
   complimentSection: {
@@ -247,46 +313,46 @@ const styles = StyleSheet.create({
   },
   complimentTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: "800",
+    color: "#0F172A",
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   complimentsWrapRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     gap: 10,
   },
   complimentChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: "#E2E8F0",
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   complimentChipSelected: {
-    backgroundColor: '#061138',
-    borderColor: '#061138',
+    backgroundColor: "#061138",
+    borderColor: "#061138",
   },
   complimentText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#475569',
+    fontWeight: "700",
+    color: "#475569",
   },
   complimentTextSelected: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   fareCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 5,
@@ -294,47 +360,63 @@ const styles = StyleSheet.create({
   },
   fareCardTitle: {
     fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
+    fontWeight: "900",
+    color: "#0F172A",
     marginBottom: 12,
   },
   fareRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 18,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
   },
   fareLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#64748B',
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
   },
   fareAmount: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0F172A',
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+  downloadReceiptBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  downloadReceiptText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#2563EB",
   },
   doneBtn: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: "#E2E8F0",
     borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
   },
   doneBtnActive: {
-    backgroundColor: '#061138',
-    shadowColor: '#061138',
+    backgroundColor: "#FDB813",
+    shadowColor: "#FDB813",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 4,
   },
   doneBtnText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#94A3B8',
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#94A3B8",
   },
   doneBtnTextActive: {
-    color: '#FFFFFF',
+    color: "#061138",
   },
 });

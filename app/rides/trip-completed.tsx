@@ -11,7 +11,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 
@@ -19,6 +19,8 @@ const INITIAL_TAGS = ['On Time', 'Safe Driving', 'Friendly Driver', 'Clean Car']
 
 export default function TripCompletedScreen() {
   const router = useRouter();
+  const { rideRequestId, fare, tripCategory } = useLocalSearchParams<{ rideRequestId?: string; fare?: string; tripCategory?: string }>();
+  const isReturnTrip = tripCategory === 'RETURN';
 
   const [rating, setRating] = useState<number>(5);
   const [selectedTags, setSelectedTags] = useState<string[]>(INITIAL_TAGS);
@@ -31,9 +33,15 @@ export default function TripCompletedScreen() {
   };
 
   const handleSubmitRating = () => {
-    Alert.alert('Trip Summary Saved', 'Thank you for rating your ride with YAALU!', [
-      { text: 'OK', onPress: () => router.push('/(tabs)') },
-    ]);
+    router.push({
+      pathname: '/rides/rate-driver' as any,
+      params: {
+        rideRequestId: rideRequestId || 'RIDE-DEMO-1001',
+        rating: rating.toString(),
+        comments,
+        tripCategory: tripCategory || 'ONE_WAY',
+      }
+    });
   };
 
   return (
@@ -64,7 +72,7 @@ export default function TripCompletedScreen() {
       >
         {/* Big Hero Final Fare Banner */}
         <View style={styles.heroFareBanner}>
-          <Text style={styles.heroFareText}>Final Fare: LKR 95.00</Text>
+          <Text style={styles.heroFareText}>Final Fare: LKR 1,350.00</Text>
         </View>
 
         {/* Trip Summary Map Card */}
@@ -80,7 +88,7 @@ export default function TripCompletedScreen() {
 
             <View style={styles.mapLabelStrip}>
               <Text style={styles.mapLabelText}>
-                Trip Summary: Kottawa to Homagama, 4.8 Km, 12 min
+                Trip Summary ({isReturnTrip ? 'Return Trip' : 'One Way'}): Homagama to Moratuwa, 12.4 Km
               </Text>
             </View>
           </View>
@@ -515,3 +523,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+

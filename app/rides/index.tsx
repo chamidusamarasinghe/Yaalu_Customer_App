@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,20 +9,33 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap from '../../components/InteractiveMap';
 
 export default function RideDestinationScreen() {
   const router = useRouter();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
 
-  const [tripType, setTripType] = useState<'oneWay' | 'return'>('oneWay');
+  const [tripType, setTripType] = useState<'ONE_WAY' | 'RETURN'>('ONE_WAY');
   const [pickupLocation, setPickupLocation] = useState('Your Location');
   const [dropLocation, setDropLocation] = useState('Moratuwa');
 
   const handleSelectDestination = (destinationName: string) => {
     setDropLocation(destinationName);
+  };
+
+  const handleProceedToVehicle = () => {
+    router.push({
+      pathname: '/rides/select-vehicle' as any,
+      params: {
+        mode: mode || 'standard',
+        tripCategory: tripType,
+        pickup: pickupLocation,
+        dropoff: dropLocation,
+      },
+    });
   };
 
   return (
@@ -74,30 +87,30 @@ export default function RideDestinationScreen() {
 
         {/* Lower Screen: Destination & Trip Options Card */}
         <View style={styles.searchCardContainer}>
-          {/* Trip Selector (One way / Return trip) */}
+          {/* Trip Selector (One way / Return trip - Mutually Exclusive) */}
           <View style={styles.tripTypeRow}>
             <TouchableOpacity
               activeOpacity={0.8}
-              style={[styles.tripTypeChip, tripType === 'oneWay' && styles.tripTypeChipActive]}
-              onPress={() => setTripType('oneWay')}
+              style={[styles.tripTypeChip, tripType === 'ONE_WAY' && styles.tripTypeChipActive]}
+              onPress={() => setTripType('ONE_WAY')}
             >
-              <View style={[styles.radioCircle, tripType === 'oneWay' && styles.radioCircleActive]}>
-                {tripType === 'oneWay' && <View style={styles.radioDot} />}
+              <View style={[styles.radioCircle, tripType === 'ONE_WAY' && styles.radioCircleActive]}>
+                {tripType === 'ONE_WAY' && <View style={styles.radioDot} />}
               </View>
-              <Text style={[styles.tripTypeText, tripType === 'oneWay' && styles.tripTypeTextActive]}>
+              <Text style={[styles.tripTypeText, tripType === 'ONE_WAY' && styles.tripTypeTextActive]}>
                 One way
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               activeOpacity={0.8}
-              style={[styles.tripTypeChip, tripType === 'return' && styles.tripTypeChipActive]}
-              onPress={() => setTripType('return')}
+              style={[styles.tripTypeChip, tripType === 'RETURN' && styles.tripTypeChipActive]}
+              onPress={() => setTripType('RETURN')}
             >
-              <View style={[styles.radioCircle, tripType === 'return' && styles.radioCircleActive]}>
-                {tripType === 'return' && <View style={styles.radioDot} />}
+              <View style={[styles.radioCircle, tripType === 'RETURN' && styles.radioCircleActive]}>
+                {tripType === 'RETURN' && <View style={styles.radioDot} />}
               </View>
-              <Text style={[styles.tripTypeText, tripType === 'return' && styles.tripTypeTextActive]}>
+              <Text style={[styles.tripTypeText, tripType === 'RETURN' && styles.tripTypeTextActive]}>
                 Return trip*
               </Text>
             </TouchableOpacity>
@@ -176,7 +189,7 @@ export default function RideDestinationScreen() {
           <TouchableOpacity
             activeOpacity={0.88}
             style={styles.selectVehicleBtn}
-            onPress={() => router.push('/rides/select-vehicle' as any)}
+            onPress={handleProceedToVehicle}
           >
             <Ionicons name="car-sport" size={20} color="#061138" style={{ marginRight: 8 }} />
             <Text style={styles.selectVehicleBtnText}>Select Vehicle</Text>
@@ -410,3 +423,4 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 });
+

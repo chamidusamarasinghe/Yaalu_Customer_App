@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,7 +8,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap from '../../components/InteractiveMap';
@@ -59,10 +59,28 @@ const VEHICLES: VehicleOption[] = [
 
 export default function SelectVehicleScreen() {
   const router = useRouter();
+  const { mode, tripCategory, pickup, dropoff } = useLocalSearchParams<{
+    mode?: string;
+    tripCategory?: string;
+    pickup?: string;
+    dropoff?: string;
+  }>();
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('bike');
 
   const handleBookNow = () => {
-    router.push('/rides/verify-start' as any);
+    const routeParams = {
+      mode: mode || 'standard',
+      tripCategory: tripCategory || 'ONE_WAY',
+      vehicleType: selectedVehicleId,
+      pickup: pickup || 'Homagama',
+      dropoff: dropoff || 'Moratuwa',
+    };
+
+    if (mode === 'bidding') {
+      router.push({ pathname: '/rides/bidding-timer' as any, params: routeParams });
+    } else {
+      router.push({ pathname: '/rides/confirm-pickup' as any, params: routeParams });
+    }
   };
 
   return (
@@ -163,7 +181,7 @@ export default function SelectVehicleScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Primary Action Button: Book Now */}
+          {/* Primary Action Button: Request Driver Bids */}
           <TouchableOpacity
             activeOpacity={0.88}
             style={styles.bookNowBtn}
@@ -344,3 +362,4 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 });
+

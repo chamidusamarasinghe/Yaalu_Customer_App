@@ -10,17 +10,27 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
+import { rideService } from '../../services/api/ride-service';
 
 export default function VerifyStartCodeScreen() {
   const router = useRouter();
+  const { rideRequestId, tripCategory } = useLocalSearchParams<{ rideRequestId?: string; tripCategory?: string }>();
 
   const [pin, setPin] = useState(['4', '2', '0', '0']);
 
-  const handleVerifyAndStart = () => {
-    router.push('/rides/in-trip' as any);
+  const handleVerifyAndStart = async () => {
+    const rId = rideRequestId || 'RIDE-DEMO-1001';
+    await rideService.verifyStartPin(rId, pin.join(''));
+    router.push({
+      pathname: '/rides/in-trip' as any,
+      params: {
+        rideRequestId: rId,
+        tripCategory: tripCategory || 'ONE_WAY',
+      }
+    });
   };
 
   return (

@@ -117,70 +117,120 @@ export default function ActivitiesScreen() {
             <ActivityIndicator size="large" color="#FDB813" />
             <Text style={{ marginTop: 12, color: '#64748B', fontWeight: '600' }}>Loading user activities...</Text>
           </View>
-        ) : filteredOrders.length === 0 ? (
-          /* Empty Activities State */
-          <View style={styles.emptyState}>
-            <Ionicons name="time-outline" size={64} color="#CBD5E1" style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyTitle}>No activities yet</Text>
-            <Text style={styles.emptySubtitle}>You haven't completed any rides or shop purchases yet.</Text>
-          </View>
         ) : (
-          filteredOrders.map((order) => {
-            const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            }) : 'Recent';
-
-            const itemsCount = order.items ? order.items.length : 0;
-            const totalVal = typeof order.totalAmount === 'number' ? order.totalAmount : parseFloat(order.totalAmount as string) || 0;
-
-            return (
+          <View>
+            {/* Rides & Driver Bidding Activity Section */}
+            {(activeTab === 'All' || activeTab === 'Completed') && (
               <TouchableOpacity
-                key={order.id}
                 activeOpacity={0.88}
                 style={styles.orderCard}
-                onPress={() => handleCardPress(order.id)}
+                onPress={() => router.push('/rides/trip-completed' as any)}
               >
                 <View style={styles.cardHeaderRow}>
-                  <View style={[styles.iconCircle, { backgroundColor: '#E6F4EA' }]}>
-                    <Ionicons name="cart-outline" size={22} color="#059669" />
+                  <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
+                    <Ionicons name="car-sport" size={22} color="#D97706" />
                   </View>
 
                   <View style={styles.cardMainCol}>
-                    <Text style={styles.orderIdText}>Order #{order.id.substring(0, 8).toUpperCase()}</Text>
-                    <Text style={styles.storeNameText}>{order.customerName || 'Fresh Harvest Shop'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={styles.orderIdText}>Ride #RIDE-1001</Text>
+                      <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginLeft: 6, borderWidth: 1, borderColor: '#BFDBFE' }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#2563EB' }}>One Way ➔</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.storeNameText}>Homagama to Moratuwa • Driver Ravi S.</Text>
                   </View>
 
-                  <View style={[styles.statusBadge, { backgroundColor: order.status === 'delivered' ? '#DCFCE7' : '#FEF3C7' }]}>
-                    <Text style={[styles.statusBadgeText, { color: order.status === 'delivered' ? '#166534' : '#D97706' }]}>
-                      {(order.status || 'PENDING').toUpperCase()}
+                  <View style={[styles.statusBadge, { backgroundColor: '#DCFCE7' }]}>
+                    <Text style={[styles.statusBadgeText, { color: '#166534' }]}>
+                      COMPLETED
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.summaryBottomRow}>
                   <View>
-                    <Text style={styles.summaryText}>
-                      {itemsCount} {itemsCount === 1 ? 'Item' : 'Items'} • LKR {totalVal.toFixed(2)}
-                    </Text>
-                    <Text style={styles.dateText}>{dateStr}</Text>
+                    <Text style={styles.summaryText}>Bidding Ride • LKR 1,350.00</Text>
+                    <Text style={styles.dateText}>Today, 10:30 AM</Text>
                   </View>
 
-                  {/* Section Order Status Button */}
                   <TouchableOpacity
                     activeOpacity={0.8}
-                    style={styles.statusBtn}
-                    onPress={() => handleStatusPress(order.id)}
+                    style={[styles.statusBtn, { borderColor: '#D97706', backgroundColor: '#FFFBEB' }]}
+                    onPress={() => router.push('/rides/rate-driver' as any)}
                   >
-                    <Ionicons name="time-outline" size={15} color="#059669" style={{ marginRight: 4 }} />
-                    <Text style={styles.statusBtnText}>Order Status</Text>
+                    <Ionicons name="star" size={14} color="#D97706" style={{ marginRight: 4 }} />
+                    <Text style={[styles.statusBtnText, { color: '#D97706' }]}>View Receipt</Text>
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
-            );
-          })
+            )}
+
+            {filteredOrders.length === 0 && activeTab !== 'All' && activeTab !== 'Completed' ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="time-outline" size={64} color="#CBD5E1" style={{ marginBottom: 12 }} />
+                <Text style={styles.emptyTitle}>No activities yet</Text>
+                <Text style={styles.emptySubtitle}>You haven't completed any rides or shop purchases yet.</Text>
+              </View>
+            ) : (
+              filteredOrders.map((order) => {
+                const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : 'Recent';
+
+                const itemsCount = order.items ? order.items.length : 0;
+                const totalVal = typeof order.totalAmount === 'number' ? order.totalAmount : parseFloat(order.totalAmount as string) || 0;
+
+                return (
+                  <TouchableOpacity
+                    key={order.id}
+                    activeOpacity={0.88}
+                    style={styles.orderCard}
+                    onPress={() => handleCardPress(order.id)}
+                  >
+                    <View style={styles.cardHeaderRow}>
+                      <View style={[styles.iconCircle, { backgroundColor: '#E6F4EA' }]}>
+                        <Ionicons name="cart-outline" size={22} color="#059669" />
+                      </View>
+
+                      <View style={styles.cardMainCol}>
+                        <Text style={styles.orderIdText}>Order #{order.id.substring(0, 8).toUpperCase()}</Text>
+                        <Text style={styles.storeNameText}>{order.customerName || 'Fresh Harvest Shop'}</Text>
+                      </View>
+
+                      <View style={[styles.statusBadge, { backgroundColor: order.status === 'delivered' ? '#DCFCE7' : '#FEF3C7' }]}>
+                        <Text style={[styles.statusBadgeText, { color: order.status === 'delivered' ? '#166534' : '#D97706' }]}>
+                          {(order.status || 'PENDING').toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.summaryBottomRow}>
+                      <View>
+                        <Text style={styles.summaryText}>
+                          {itemsCount} {itemsCount === 1 ? 'Item' : 'Items'} • LKR {totalVal.toFixed(2)}
+                        </Text>
+                        <Text style={styles.dateText}>{dateStr}</Text>
+                      </View>
+
+                      {/* Section Order Status Button */}
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={styles.statusBtn}
+                        onPress={() => handleStatusPress(order.id)}
+                      >
+                        <Ionicons name="time-outline" size={15} color="#059669" style={{ marginRight: 4 }} />
+                        <Text style={styles.statusBtnText}>Order Status</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
         )}
       </ScrollView>
     </View>

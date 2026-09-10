@@ -117,8 +117,7 @@ export default function CustomerHomeScreen() {
             {/* Bidding Card */}
             <TouchableOpacity
               activeOpacity={0.88}
-              style={[styles.serviceCard, styles.biddingCardBg]}
-              onPress={() => router.push('/rides' as any)}
+              style={[styles.serviceCard, styles.biddingCardBg]} onPress={() => router.push('/rides?mode=bidding' as any)}
             >
               <View style={styles.serviceIconCircle}>
                 <Ionicons name="pricetag" size={24} color="#061138" />
@@ -522,3 +521,4 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 });
+
