@@ -12,19 +12,72 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap from '../../components/InteractiveMap';
+import { rideService } from '../../services/api/ride-service';
 
 const { width, height } = Dimensions.get('window');
 
 export default function ConfirmPickupScreen() {
   const router = useRouter();
-  const { mode, tripCategory } = useLocalSearchParams<{ mode?: string; tripCategory?: string }>();
-  const [pickupCoords, setPickupCoords] = useState({ latitude: 6.8413, longitude: 79.9654 });
+  const { mode, tripCategory, vehicleType, pickup, dropoff, pickupLat, pickupLng, dropoffLat, dropoffLng } = useLocalSearchParams<{
+    mode?: string;
+    tripCategory?: string;
+    vehicleType?: string;
+    pickup?: string;
+    dropoff?: string;
+    pickupLat?: string;
+    pickupLng?: string;
+    dropoffLat?: string;
+    dropoffLng?: string;
+  }>();
+  const initialLat = pickupLat ? parseFloat(pickupLat) : 6.8413;
+  const initialLng = pickupLng ? parseFloat(pickupLng) : 79.9654;
+  const [pickupCoords, setPickupCoords] = useState({ latitude: initialLat, longitude: initialLng });
+  const [loading, setLoading] = useState(false);
 
-  const handleConfirmPickup = () => {
-    router.push({
-      pathname: '/rides/verify-start' as any,
-      params: { tripCategory: tripCategory || 'ONE_WAY' }
-    });
+  const handleConfirmPickup = async () => {
+    try {
+      setLoading(true);
+      const record = await rideService.createRideRequest({
+        pickupAddress: pickup || 'Pickup Location',
+        dropoffAddress: dropoff || 'Dropoff Location',
+        pickupLat: pickupCoords.latitude,
+        pickupLng: pickupCoords.longitude,
+        dropoffLat: dropoffLat ? parseFloat(dropoffLat) : undefined,
+        dropoffLng: dropoffLng ? parseFloat(dropoffLng) : undefined,
+        rideType: 'STANDARD',
+        selectedVehicleType: vehicleType || 'bike',
+        tripCategory: (tripCategory as any) || 'ONE_WAY',
+      });
+      router.push({
+        pathname: '/rides/verify-start' as any,
+        params: {
+          rideRequestId: record.id,
+          tripCategory: tripCategory || 'ONE_WAY',
+          pickup: record.pickupAddress,
+          dropoff: record.dropoffAddress,
+          fare: record.fareAmount ? record.fareAmount.toString() : undefined,
+          pickupLat: String(pickupCoords.latitude),
+          pickupLng: String(pickupCoords.longitude),
+          dropoffLat: dropoffLat ? String(dropoffLat) : undefined,
+          dropoffLng: dropoffLng ? String(dropoffLng) : undefined,
+        }
+      });
+    } catch (e) {
+      router.push({
+        pathname: '/rides/verify-start' as any,
+        params: {
+          tripCategory: tripCategory || 'ONE_WAY',
+          pickup,
+          dropoff,
+          pickupLat,
+          pickupLng,
+          dropoffLat,
+          dropoffLng,
+        }
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

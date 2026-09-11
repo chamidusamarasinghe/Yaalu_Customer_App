@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -16,20 +16,35 @@ import { rideService, RideRequestRecord } from "../../services/api/ride-service"
 
 export default function BiddingTimerScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ pickup?: string; dropoff?: string; vehicleType?: string; tripCategory?: string }>();
+  const params = useLocalSearchParams<{
+    pickup?: string;
+    dropoff?: string;
+    vehicleType?: string;
+    tripCategory?: string;
+    pickupLat?: string;
+    pickupLng?: string;
+    dropoffLat?: string;
+    dropoffLng?: string;
+  }>();
   const [secondsLeft, setSecondsLeft] = useState(480); // 8:00
   const [pulseAnim] = useState(new Animated.Value(1));
   const [rideRecord, setRideRecord] = useState<RideRequestRecord | null>(null);
+  const createdRideIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Create initial bidding ride request in backend
     rideService.createRideRequest({
-      pickupAddress: params.pickup || 'Homagama',
-      dropoffAddress: params.dropoff || 'Moratuwa',
+      pickupAddress: params.pickup || 'Pickup Location',
+      dropoffAddress: params.dropoff || 'Dropoff Location',
+      pickupLat: params.pickupLat ? parseFloat(params.pickupLat) : undefined,
+      pickupLng: params.pickupLng ? parseFloat(params.pickupLng) : undefined,
+      dropoffLat: params.dropoffLat ? parseFloat(params.dropoffLat) : undefined,
+      dropoffLng: params.dropoffLng ? parseFloat(params.dropoffLng) : undefined,
       rideType: 'BIDDING',
       selectedVehicleType: params.vehicleType || 'bike',
       tripCategory: (params.tripCategory as any) || 'ONE_WAY',
     }).then((record) => {
+      createdRideIdRef.current = record.id;
       setRideRecord(record);
     });
   }, []);
@@ -63,17 +78,19 @@ export default function BiddingTimerScreen() {
   // Auto navigate to confirm bid after 4.5 seconds
   useEffect(() => {
     const autoNav = setTimeout(() => {
-      const targetId = rideRecord?.id || 'RIDE-DEMO-1001';
+      const targetId = createdRideIdRef.current || rideRecord?.id;
       router.push({
         pathname: "/rides/bidding-confirm" as any,
         params: {
           rideRequestId: targetId,
           tripCategory: params.tripCategory || 'ONE_WAY',
+          pickup: params.pickup,
+          dropoff: params.dropoff,
         }
       });
     }, 4500);
     return () => clearTimeout(autoNav);
-  }, [rideRecord, params.tripCategory]);
+  }, [params.tripCategory]);
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);

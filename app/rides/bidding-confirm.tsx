@@ -17,21 +17,58 @@ import { rideService } from "../../services/api/ride-service";
 
 export default function BiddingConfirmScreen() {
   const router = useRouter();
-  const { rideRequestId, tripCategory } = useLocalSearchParams<{ rideRequestId?: string; tripCategory?: string }>();
+  const { rideRequestId, tripCategory, pickup, dropoff } = useLocalSearchParams<{ rideRequestId?: string; tripCategory?: string; pickup?: string; dropoff?: string }>();
   const isReturnTrip = tripCategory === 'RETURN';
 
+  const [rideDetails, setRideDetails] = React.useState<any>(null);
+  const [selectedBid, setSelectedBid] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    if (rideRequestId) {
+      rideService.getRideDetails(rideRequestId).then((details) => {
+        setRideDetails(details);
+        if (details.bids && details.bids.length > 0) {
+          setSelectedBid(details.bids[0]);
+        }
+      }).catch((e) => console.warn('[BiddingConfirm fetch error]:', e));
+    }
+  }, [rideRequestId]);
+
   const handleConfirmBooking = async () => {
-    const rId = rideRequestId || 'RIDE-DEMO-1001';
-    await rideService.acceptBid(rId, 'bid-001');
+    if (!rideRequestId) return;
+    const bidId = selectedBid?.id || 'bid-001';
+    await rideService.acceptBid(rideRequestId, bidId);
+    const fareValue = selectedBid?.proposedFare || rideDetails?.finalFare || "710.07";
     router.push({
       pathname: "/rides/in-trip" as any,
       params: {
-        rideRequestId: rId,
-        fare: "1350.00",
-        tripCategory: tripCategory || 'ONE_WAY',
+        rideRequestId,
+        fare: String(fareValue),
+        tripCategory: tripCategory || rideDetails?.tripCategory || 'ONE_WAY',
+        pickup: rideDetails?.pickupAddress || pickup,
+        dropoff: rideDetails?.dropoffAddress || dropoff,
+        pickupLat: rideDetails?.pickupLat ? String(rideDetails.pickupLat) : undefined,
+        pickupLng: rideDetails?.pickupLng ? String(rideDetails.pickupLng) : undefined,
+        dropoffLat: rideDetails?.dropoffLat ? String(rideDetails.dropoffLat) : undefined,
+        dropoffLng: rideDetails?.dropoffLng ? String(rideDetails.dropoffLng) : undefined,
       }
     });
   };
+
+  const pickupText = rideDetails?.pickupAddress || pickup || 'Selected Pickup';
+  const dropoffText = rideDetails?.dropoffAddress || dropoff || 'Selected Dropoff';
+  const displayFare = selectedBid ? `LKR ${Number(selectedBid.proposedFare).toFixed(2)}` : (rideDetails?.finalFare ? `LKR ${Number(rideDetails.finalFare).toFixed(2)}` : 'LKR 710.07');
+  const driverName = selectedBid?.driverName || 'Ravi S.';
+  const vehicleModel = selectedBid?.vehicleModel || 'Toyota Prius - White';
+  const vehicleNumber = selectedBid?.vehicleNumber || 'WP CAH-1234';
+
+  const mapMarkers: any[] = [];
+  if (rideDetails?.pickupLat && rideDetails?.pickupLng) {
+    mapMarkers.push({ id: 'p', latitude: rideDetails.pickupLat, longitude: rideDetails.pickupLng, title: pickupText, type: 'pickup' });
+  }
+  if (rideDetails?.dropoffLat && rideDetails?.dropoffLng) {
+    mapMarkers.push({ id: 'd', latitude: rideDetails.dropoffLat, longitude: rideDetails.dropoffLng, title: dropoffText, type: 'drop' });
+  }
 
   return (
     <View style={styles.container}>
@@ -55,17 +92,14 @@ export default function BiddingConfirmScreen() {
         <View style={styles.mapCard}>
           <InteractiveMap
             height="100%"
-            center={{ latitude: 6.8413, longitude: 79.9654 }}
+            center={mapMarkers.length > 0 ? { latitude: mapMarkers[0].latitude, longitude: mapMarkers[0].longitude } : { latitude: 6.9271, longitude: 79.8612 }}
             zoom={12}
-            markers={[
-              { id: "1", latitude: 6.8413, longitude: 79.9654, title: "Your Location", type: "pickup" },
-              { id: "2", latitude: 6.7106, longitude: 79.9074, title: "Moratuwa", type: "drop" },
-            ]}
-            showRoute={true}
+            markers={mapMarkers}
+            showRoute={mapMarkers.length >= 2}
           />
         </View>
 
-        {/* Accepted Bid Green Banner (Matching Frame 5 / Image 2) */}
+        {/* Accepted Bid Green Banner */}
         <View style={styles.acceptedBanner}>
           <View style={styles.checkIconCircle}>
             <Ionicons name="checkmark" size={18} color="#FFFFFF" />
@@ -75,7 +109,7 @@ export default function BiddingConfirmScreen() {
           </Text>
         </View>
 
-        {/* Driver & Bid Details Card (Matching Image 2 / Frame 5) */}
+        {/* Driver & Bid Details Card */}
         <View style={styles.driverCard}>
           <View style={styles.driverTopRow}>
             <Image
@@ -84,14 +118,14 @@ export default function BiddingConfirmScreen() {
             />
             <View style={styles.driverInfoCol}>
               <View style={styles.driverNameRow}>
-                <Text style={styles.driverName}>Ravi S.</Text>
+                <Text style={styles.driverName}>{driverName}</Text>
                 <View style={styles.ratingBadge}>
                   <Ionicons name="star" size={13} color="#F59E0B" />
                   <Text style={styles.ratingText}>5.0 (124)</Text>
                 </View>
               </View>
-              <Text style={styles.vehicleModelText}>Toyota Prius - White</Text>
-              <Text style={styles.vehicleRegText}>WP CAH-1234</Text>
+              <Text style={styles.vehicleModelText}>{vehicleModel}</Text>
+              <Text style={styles.vehicleRegText}>{vehicleNumber}</Text>
             </View>
           </View>
 
@@ -100,7 +134,7 @@ export default function BiddingConfirmScreen() {
           {/* Accepted Price Box */}
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Accepted Fare Bid</Text>
-            <Text style={styles.priceValue}>LKR 1,350.00</Text>
+            <Text style={styles.priceValue}>{displayFare}</Text>
           </View>
           <Text style={styles.priceSubtext}>Guaranteed fixed price for this trip</Text>
         </View>
@@ -118,12 +152,12 @@ export default function BiddingConfirmScreen() {
 
           <View style={styles.routeRow}>
             <Ionicons name="ellipse" size={12} color="#2563EB" style={{ marginRight: 10 }} />
-            <Text style={styles.routeText}>Pickup: Homagama (Your Location)</Text>
+            <Text style={styles.routeText}>Pickup: {pickupText}</Text>
           </View>
           <View style={styles.routeConnectorLine} />
           <View style={styles.routeRow}>
             <Ionicons name="location-sharp" size={14} color="#D97706" style={{ marginRight: 10 }} />
-            <Text style={styles.routeText}>Drop-off: Moratuwa</Text>
+            <Text style={styles.routeText}>Drop-off: {dropoffText}</Text>
           </View>
         </View>
 
@@ -134,7 +168,7 @@ export default function BiddingConfirmScreen() {
           onPress={handleConfirmBooking}
         >
           <Ionicons name="checkmark-circle" size={22} color="#061138" style={{ marginRight: 8 }} />
-          <Text style={styles.confirmBtnText}>Confirm Ravi's Booking</Text>
+          <Text style={styles.confirmBtnText}>Confirm {driverName.split(' ')[0]}'s Booking</Text>
         </TouchableOpacity>
       </ScrollView>
 

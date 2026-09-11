@@ -12,22 +12,45 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import CustomBottomTabBar from "../../components/CustomBottomTabBar";
-import InteractiveMap from "../../components/InteractiveMap";
+import InteractiveMap, { MapMarker } from "../../components/InteractiveMap";
 import { rideService } from "../../services/api/ride-service";
 
 export default function InTripScreen() {
   const router = useRouter();
-  const { rideRequestId, fare, tripCategory } = useLocalSearchParams<{ rideRequestId?: string; fare?: string; tripCategory?: string }>();
+  const { rideRequestId, fare, tripCategory, pickup, dropoff, pickupLat, pickupLng, dropoffLat, dropoffLng } = useLocalSearchParams<{
+    rideRequestId?: string;
+    fare?: string;
+    tripCategory?: string;
+    pickup?: string;
+    dropoff?: string;
+    pickupLat?: string;
+    pickupLng?: string;
+    dropoffLat?: string;
+    dropoffLng?: string;
+  }>();
+
+  const pLat = pickupLat ? parseFloat(pickupLat) : 6.9271;
+  const pLng = pickupLng ? parseFloat(pickupLng) : 79.8612;
+  const dLat = dropoffLat ? parseFloat(dropoffLat) : (pickupLat ? pLat - 0.05 : 6.8413);
+  const dLng = dropoffLng ? parseFloat(dropoffLng) : (pickupLng ? pLng - 0.05 : 79.9654);
+
+  const markersList: MapMarker[] = [
+    { id: "1", latitude: pLat, longitude: pLng, title: pickup || "Pickup", type: "pickup" },
+    { id: "2", latitude: dLat, longitude: dLng, title: dropoff || "Dropoff", type: "drop" },
+  ];
 
   const handleFinishTrip = async () => {
-    const rId = rideRequestId || 'RIDE-DEMO-1001';
-    await rideService.completeRide(rId);
+    if (rideRequestId) {
+      await rideService.completeRide(rideRequestId);
+    }
     router.push({
       pathname: "/rides/trip-completed" as any,
       params: {
-        rideRequestId: rId,
-        fare: fare || "1,350.00",
+        rideRequestId,
+        fare: fare || "710.07",
         tripCategory: tripCategory || 'ONE_WAY',
+        pickup,
+        dropoff,
       }
     });
   };
@@ -57,12 +80,9 @@ export default function InTripScreen() {
         <View style={styles.mapContainer}>
           <InteractiveMap
             height="100%"
-            center={{ latitude: 6.8413, longitude: 79.9654 }}
+            center={{ latitude: pLat, longitude: pLng }}
             zoom={13}
-            markers={[
-              { id: "1", latitude: 6.8413, longitude: 79.9654, title: "Pickup", type: "pickup" },
-              { id: "2", latitude: 6.7106, longitude: 79.9074, title: "Moratuwa", type: "drop" },
-            ]}
+            markers={markersList}
             showRoute={true}
           />
           {/* Floating Map Pin Tooltip */}
@@ -104,7 +124,7 @@ export default function InTripScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.dropLabel}>DROP-OFF</Text>
-              <Text style={styles.destName}>Moratuwa</Text>
+              <Text style={styles.destName}>{dropoff || "Destination"}</Text>
             </View>
             <Text style={styles.etaText}>ETA: 15 min</Text>
           </View>

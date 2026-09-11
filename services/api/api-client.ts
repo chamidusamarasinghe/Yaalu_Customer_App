@@ -46,30 +46,35 @@ class ApiClient {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
     const urls: string[] = [];
 
-    const primaryUrl = (process.env.EXPO_PUBLIC_API_URL || 'http://' + LOCAL_WIFI_IP + ':3001') + cleanEndpoint;
-    urls.push(primaryUrl);
+    // 1. Port 3001 (API Gateway primary - localhost & loopback first)
+    urls.push('http://localhost:3001' + cleanEndpoint);
+    urls.push('http://127.0.0.1:3001' + cleanEndpoint);
+    urls.push('http://' + LOCAL_WIFI_IP + ':3001' + cleanEndpoint);
 
-    const baseEndpoint = this.baseUrl + cleanEndpoint;
-    if (!urls.includes(baseEndpoint)) urls.push(baseEndpoint);
+    if (process.env.EXPO_PUBLIC_API_URL) {
+      urls.push(process.env.EXPO_PUBLIC_API_URL + cleanEndpoint);
+    }
 
     const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
     if (hostUri) {
       const ip = hostUri.split(':')[0];
       if (ip && !isVirtualAdapterIp(ip)) {
-        const u = 'http://' + ip + ':3001' + cleanEndpoint;
-        if (!urls.includes(u)) urls.push(u);
+        urls.push('http://' + ip + ':3001' + cleanEndpoint);
+        urls.push('http://' + ip + ':3000' + cleanEndpoint);
       }
     }
 
     if (Platform.OS === 'android') {
-      const androidUrl = 'http://10.0.2.2:3001' + cleanEndpoint;
-      if (!urls.includes(androidUrl)) urls.push(androidUrl);
+      urls.push('http://10.0.2.2:3001' + cleanEndpoint);
+      urls.push('http://10.0.2.2:3000' + cleanEndpoint);
     }
 
-    const localhostUrl = 'http://localhost:3001' + cleanEndpoint;
-    if (!urls.includes(localhostUrl)) urls.push(localhostUrl);
+    // 2. Port 3000 fallback
+    urls.push('http://localhost:3000' + cleanEndpoint);
+    urls.push('http://127.0.0.1:3000' + cleanEndpoint);
+    urls.push('http://' + LOCAL_WIFI_IP + ':3000' + cleanEndpoint);
 
-    return urls;
+    return Array.from(new Set(urls));
   }
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -88,7 +93,7 @@ class ApiClient {
 
     for (const url of candidateUrls) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       try {
         const response = await fetch(url, {

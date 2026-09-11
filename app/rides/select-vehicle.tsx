@@ -59,11 +59,15 @@ const VEHICLES: VehicleOption[] = [
 
 export default function SelectVehicleScreen() {
   const router = useRouter();
-  const { mode, tripCategory, pickup, dropoff } = useLocalSearchParams<{
+  const { mode, tripCategory, pickup, dropoff, pickupLat, pickupLng, dropoffLat, dropoffLng } = useLocalSearchParams<{
     mode?: string;
     tripCategory?: string;
     pickup?: string;
     dropoff?: string;
+    pickupLat?: string;
+    pickupLng?: string;
+    dropoffLat?: string;
+    dropoffLng?: string;
   }>();
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('bike');
 
@@ -72,8 +76,12 @@ export default function SelectVehicleScreen() {
       mode: mode || 'standard',
       tripCategory: tripCategory || 'ONE_WAY',
       vehicleType: selectedVehicleId,
-      pickup: pickup || 'Homagama',
-      dropoff: dropoff || 'Moratuwa',
+      pickup: pickup || 'Pickup Location',
+      dropoff: dropoff || 'Dropoff Location',
+      pickupLat,
+      pickupLng,
+      dropoffLat,
+      dropoffLng,
     };
 
     if (mode === 'bidding') {
@@ -82,6 +90,31 @@ export default function SelectVehicleScreen() {
       router.push({ pathname: '/rides/confirm-pickup' as any, params: routeParams });
     }
   };
+
+  // Build dynamic markers from params
+  const vehicleMarkers: any[] = [];
+  if (pickupLat && pickupLng) {
+    vehicleMarkers.push({
+      id: 'p1',
+      latitude: parseFloat(pickupLat),
+      longitude: parseFloat(pickupLng),
+      title: pickup || 'Pickup',
+      type: 'pickup',
+    });
+  }
+  if (dropoffLat && dropoffLng) {
+    vehicleMarkers.push({
+      id: 'd1',
+      latitude: parseFloat(dropoffLat),
+      longitude: parseFloat(dropoffLng),
+      title: dropoff || 'Dropoff',
+      type: 'drop',
+    });
+  }
+
+  const mapCenter = vehicleMarkers.length > 0
+    ? { latitude: vehicleMarkers[0].latitude, longitude: vehicleMarkers[0].longitude }
+    : { latitude: 6.9271, longitude: 79.8612 };
 
   return (
     <View style={styles.container}>
@@ -104,13 +137,10 @@ export default function SelectVehicleScreen() {
         <View style={styles.mapContainer}>
           <InteractiveMap
             height="100%"
-            center={{ latitude: 6.8413, longitude: 79.9654 }}
+            center={mapCenter}
             zoom={12}
-            markers={[
-              { id: '1', latitude: 6.8413, longitude: 79.9654, title: 'Your Location', type: 'pickup' },
-              { id: '2', latitude: 6.7106, longitude: 79.9074, title: 'Moratuwa', type: 'drop' },
-            ]}
-            showRoute={true}
+            markers={vehicleMarkers}
+            showRoute={vehicleMarkers.length >= 2}
           />
         </View>
 

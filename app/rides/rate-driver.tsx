@@ -42,9 +42,14 @@ export default function RateDriverScreen() {
   };
 
   const handleDone = async () => {
-    const rId = rideRequestId || 'RIDE-DEMO-1001';
+    if (!rideRequestId) {
+      Alert.alert("Feedback Submitted", "Thank you for rating your experience with YAALU!", [
+        { text: "OK", onPress: () => router.push("/(tabs)") },
+      ]);
+      return;
+    }
     await rideService.submitFeedback({
-      rideRequestId: rId,
+      rideRequestId,
       rating,
       compliments: selectedCompliments,
       comment: comments,

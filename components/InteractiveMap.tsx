@@ -22,16 +22,17 @@ interface InteractiveMapProps {
 
 export default function InteractiveMap({
   height = 300,
-  center = { latitude: 6.9271, longitude: 79.8612 }, // Default Colombo
+  center = { latitude: 6.9271, longitude: 79.8612 }, // Default Colombo center view
   zoom = 14,
-  markers = [
-    { id: '1', latitude: 6.9271, longitude: 79.8612, title: 'Selected Location', type: 'pickup' },
-  ],
+  markers = [],
   showRoute = false,
   onLocationSelect,
   interactivePicker = true,
 }: InteractiveMapProps) {
   const webViewRef = useRef<WebView>(null);
+
+  // Auto-recenter view on active markers if present
+  const mapCenter = markers.length > 0 ? { latitude: markers[0].latitude, longitude: markers[0].longitude } : center;
 
   // Pure OpenStreetMap implementation using OpenLayers (ol.js & ol.source.OSM)
   const openStreetMapHtml = `
@@ -110,8 +111,8 @@ export default function InteractiveMap({
     <body>
       <div id="map"></div>
       <script>
-        var initialLng = ${center.longitude};
-        var initialLat = ${center.latitude};
+        var initialLng = ${mapCenter.longitude};
+        var initialLat = ${mapCenter.latitude};
 
         // OpenStreetMap Layer via OpenLayers OSM Source
         var osmLayer = new ol.layer.Tile({
@@ -146,7 +147,7 @@ export default function InteractiveMap({
           var el = document.createElement('div');
           var pinType = m.type || 'pickup';
           el.className = pinType === 'drop' ? 'custom-pin-drop' : (pinType === 'driver' ? 'custom-pin-driver' : 'custom-pin-pickup');
-          el.innerHTML = (pinType === 'driver' ? '🛵 ' : '📍 ') + (m.title || 'Location');
+          el.innerHTML = (pinType === 'drop' ? '🎯 ' : (pinType === 'driver' ? '🛵 ' : '📍 ')) + (m.title || 'Location');
 
           var overlay = new ol.Overlay({
             element: el,
@@ -167,8 +168,11 @@ export default function InteractiveMap({
           });
         }
 
-        // Render Route Line if enabled
-        if (${showRoute} && markersData.length >= 2) {
+        // Auto recenter on single marker or fit extent for multiple markers
+        if (markersData.length === 1) {
+          map.getView().setCenter(ol.proj.fromLonLat([markersData[0].longitude, markersData[0].latitude]));
+          map.getView().setZoom(13);
+        } else if (${showRoute} && markersData.length >= 2) {
           var coords = markersData.map(function(m) {
             return ol.proj.fromLonLat([m.longitude, m.latitude]);
           });
@@ -186,12 +190,27 @@ export default function InteractiveMap({
             })
           });
           map.addLayer(routeLayer);
-          map.getView().fit(routeFeature.getGeometry().getExtent(), { padding: [40, 40, 40, 40] });
+          map.getView().fit(routeFeature.getGeometry().getExtent(), { padding: [50, 50, 50, 50] });
         }
       </script>
     </body>
     </html>
   `;
+
+  React.useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleWebMessage = (event: MessageEvent) => {
+        try {
+          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          if (data && data.type === 'location_selected' && onLocationSelect) {
+            onLocationSelect(data.lat, data.lng);
+          }
+        } catch (e) {}
+      };
+      window.addEventListener('message', handleWebMessage);
+      return () => window.removeEventListener('message', handleWebMessage);
+    }
+  }, [onLocationSelect]);
 
   const handleMessage = (event: any) => {
     try {
@@ -199,9 +218,7 @@ export default function InteractiveMap({
       if (data.type === 'location_selected' && onLocationSelect) {
         onLocationSelect(data.lat, data.lng);
       }
-    } catch (e) {
-      // Ignore parse errors
-    }
+    } catch (e) {}
   };
 
   return (

@@ -138,7 +138,7 @@ export default function ActivitiesScreen() {
                         <Text style={{ fontSize: 10, fontWeight: '800', color: '#2563EB' }}>One Way ➔</Text>
                       </View>
                     </View>
-                    <Text style={styles.storeNameText}>Homagama to Moratuwa • Driver Ravi S.</Text>
+                    <Text style={styles.storeNameText}>City Ride • Driver Ravi S.</Text>
                   </View>
 
                   <View style={[styles.statusBadge, { backgroundColor: '#DCFCE7' }]}>

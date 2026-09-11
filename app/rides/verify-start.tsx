@@ -17,18 +17,38 @@ import { rideService } from '../../services/api/ride-service';
 
 export default function VerifyStartCodeScreen() {
   const router = useRouter();
-  const { rideRequestId, tripCategory } = useLocalSearchParams<{ rideRequestId?: string; tripCategory?: string }>();
+  const { rideRequestId, tripCategory, pickup, dropoff, fare, pickupLat, pickupLng, dropoffLat, dropoffLng } = useLocalSearchParams<{
+    rideRequestId?: string;
+    tripCategory?: string;
+    pickup?: string;
+    dropoff?: string;
+    fare?: string;
+    pickupLat?: string;
+    pickupLng?: string;
+    dropoffLat?: string;
+    dropoffLng?: string;
+  }>();
 
   const [pin, setPin] = useState(['4', '2', '0', '0']);
 
   const handleVerifyAndStart = async () => {
-    const rId = rideRequestId || 'RIDE-DEMO-1001';
-    await rideService.verifyStartPin(rId, pin.join(''));
+    if (!rideRequestId) {
+      Alert.alert('Error', 'No active ride request found.');
+      return;
+    }
+    await rideService.verifyStartPin(rideRequestId, pin.join(''));
     router.push({
       pathname: '/rides/in-trip' as any,
       params: {
-        rideRequestId: rId,
+        rideRequestId,
         tripCategory: tripCategory || 'ONE_WAY',
+        pickup,
+        dropoff,
+        fare,
+        pickupLat,
+        pickupLng,
+        dropoffLat,
+        dropoffLng,
       }
     });
   };

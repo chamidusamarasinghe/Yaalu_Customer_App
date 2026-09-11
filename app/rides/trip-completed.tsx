@@ -19,7 +19,7 @@ const INITIAL_TAGS = ['On Time', 'Safe Driving', 'Friendly Driver', 'Clean Car']
 
 export default function TripCompletedScreen() {
   const router = useRouter();
-  const { rideRequestId, fare, tripCategory } = useLocalSearchParams<{ rideRequestId?: string; fare?: string; tripCategory?: string }>();
+  const { rideRequestId, fare, tripCategory, pickup, dropoff } = useLocalSearchParams<{ rideRequestId?: string; fare?: string; tripCategory?: string; pickup?: string; dropoff?: string }>();
   const isReturnTrip = tripCategory === 'RETURN';
 
   const [rating, setRating] = useState<number>(5);
@@ -36,7 +36,7 @@ export default function TripCompletedScreen() {
     router.push({
       pathname: '/rides/rate-driver' as any,
       params: {
-        rideRequestId: rideRequestId || 'RIDE-DEMO-1001',
+        rideRequestId,
         rating: rating.toString(),
         comments,
         tripCategory: tripCategory || 'ONE_WAY',
@@ -72,7 +72,9 @@ export default function TripCompletedScreen() {
       >
         {/* Big Hero Final Fare Banner */}
         <View style={styles.heroFareBanner}>
-          <Text style={styles.heroFareText}>Final Fare: LKR 1,350.00</Text>
+          <Text style={styles.heroFareText}>
+            Final Fare: LKR {fare ? Number(fare).toFixed(2) : '710.07'}
+          </Text>
         </View>
 
         {/* Trip Summary Map Card */}
@@ -88,7 +90,7 @@ export default function TripCompletedScreen() {
 
             <View style={styles.mapLabelStrip}>
               <Text style={styles.mapLabelText}>
-                Trip Summary ({isReturnTrip ? 'Return Trip' : 'One Way'}): Homagama to Moratuwa, 12.4 Km
+                Trip Summary ({isReturnTrip ? 'Return Trip' : 'One Way'}): {pickup || 'Pickup'} to {dropoff || 'Dropoff'}
               </Text>
             </View>
           </View>
