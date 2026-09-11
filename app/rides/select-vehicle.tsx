@@ -16,14 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap from '../../components/InteractiveMap';
 import { cardService } from '../../services/api/card-service';
+import { rideService } from '../../services/api/ride-service';
 
 interface VehicleOption {
   id: string;
   name: string;
+  backendType: string;
   capacity: number;
   eta: string;
-  basePrice: number;
-  perKmRate: number;
   iconName: keyof typeof Ionicons.glyphMap;
 }
 
@@ -31,31 +31,100 @@ const VEHICLE_CONFIGS: VehicleOption[] = [
   {
     id: 'bike',
     name: 'Bike',
+    backendType: 'MOTORBIKE',
     capacity: 1,
     eta: 'In 1 min',
-    basePrice: 150,
-    perKmRate: 80,
     iconName: 'bicycle',
   },
   {
     id: 'flex',
     name: 'Flex',
+    backendType: 'THREE_WHEEL',
     capacity: 3,
     eta: 'In 1 min',
-    basePrice: 300,
-    perKmRate: 134,
     iconName: 'car-sport',
   },
   {
     id: 'mini',
-    name: 'Mini',
+    name: 'Normal Car',
+    backendType: 'CAR',
     capacity: 3,
-    eta: 'In 1 min',
-    basePrice: 400,
-    perKmRate: 175,
-    iconName: 'bus',
+    eta: 'In 2 min',
+    iconName: 'car',
+  },
+  {
+    id: 'luxury',
+    name: 'Luxury Car',
+    backendType: 'LUXURY_CAR',
+    capacity: 4,
+    eta: 'In 3 min',
+    iconName: 'sparkles',
+  },
+  {
+    id: 'van',
+    name: 'Van',
+    backendType: 'VAN',
+    capacity: 6,
+    eta: 'In 3 min',
+    iconName: 'cube-outline',
   },
 ];
+
+// Mathematical fare formula matching PostgreSQL fare_settings database table
+function computeDbFare(distanceKm: number, vehicleType: string): number {
+  const dist = Math.max(1.0, distanceKm);
+  let B = 370.0;
+  let C = 0.0;
+  let D = 1500.0;
+  let F = 45.0;
+  let G = 3.0;
+  let H = 2.0;
+  let multiplier = 3.0;
+  let K = 100.0;
+  let minFare = 100.0;
+
+  if (vehicleType === 'THREE_WHEEL') {
+    C = 0.02;
+    F = 25.0;
+    G = 5.0;
+    H = 3.0;
+    K = 150.0;
+    minFare = 150.0;
+  } else if (vehicleType === 'CAR') {
+    C = 0.0;
+    F = 14.0;
+    G = 10.0;
+    H = 6.0;
+    K = 250.0;
+    minFare = 250.0;
+  } else if (vehicleType === 'LUXURY_CAR') {
+    C = 0.0;
+    F = 9.0;
+    G = 20.0;
+    H = 12.0;
+    K = 500.0;
+    minFare = 500.0;
+  } else if (vehicleType === 'VAN') {
+    C = 0.0;
+    F = 10.0;
+    G = 15.0;
+    H = 8.0;
+    K = 350.0;
+    minFare = 350.0;
+  }
+
+  const A = B + (C * D);
+  const E = F > 0 ? A / F : 0;
+  const I = E + G + H;
+  const J = multiplier * I;
+
+  let L = K;
+  if (dist > 1.0) {
+    L = K + J * (dist - 1.0);
+  }
+  L = Math.max(L, minFare);
+  return Math.round(L * 100) / 100;
+}
 
 // Calculate Haversine distance between 2 geo coordinates in Kilometers
 function calculateDistanceKm(lat1?: string, lon1?: string, lat2?: string, lon2?: string): number {
@@ -129,9 +198,26 @@ export default function SelectVehicleScreen() {
     }).catch(() => {});
   }, []);
 
-  // Compute calculated vehicles with dynamic fares and promo discounts
+  // State for live backend API calculated fares
+  const [backendFares, setBackendFares] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    // Fetch live mathematical fare calculation from backend api-gateway controller
+    VEHICLE_CONFIGS.forEach((v) => {
+      rideService.calculateFare(tripDistanceKm, v.backendType).then((res) => {
+        if (res && typeof res.totalFare === 'number') {
+          setBackendFares((prev) => ({ ...prev, [v.id]: res.totalFare }));
+        }
+      }).catch(() => {});
+    });
+  }, [tripDistanceKm]);
+
+  // Compute calculated vehicles with dynamic fares from database and promo discounts
   const calculatedVehicles = VEHICLE_CONFIGS.map((v) => {
-    let rawPrice = v.basePrice + tripDistanceKm * v.perKmRate;
+    let rawPrice = backendFares[v.id] !== undefined
+      ? backendFares[v.id]
+      : computeDbFare(tripDistanceKm, v.backendType);
+
     if (appliedPromo) {
       rawPrice = rawPrice * (1 - appliedPromo.discountPercent / 100);
     }

@@ -46,9 +46,12 @@ class ApiClient {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
     const urls: string[] = [];
 
-    // 1. Port 3001 (API Gateway primary - localhost & loopback first)
+    // 1. Primary localhost ports (3000 & 3001)
+    urls.push('http://localhost:3000' + cleanEndpoint);
     urls.push('http://localhost:3001' + cleanEndpoint);
+    urls.push('http://127.0.0.1:3000' + cleanEndpoint);
     urls.push('http://127.0.0.1:3001' + cleanEndpoint);
+    urls.push('http://' + LOCAL_WIFI_IP + ':3000' + cleanEndpoint);
     urls.push('http://' + LOCAL_WIFI_IP + ':3001' + cleanEndpoint);
 
     if (process.env.EXPO_PUBLIC_API_URL) {
@@ -59,20 +62,15 @@ class ApiClient {
     if (hostUri) {
       const ip = hostUri.split(':')[0];
       if (ip && !isVirtualAdapterIp(ip)) {
-        urls.push('http://' + ip + ':3001' + cleanEndpoint);
         urls.push('http://' + ip + ':3000' + cleanEndpoint);
+        urls.push('http://' + ip + ':3001' + cleanEndpoint);
       }
     }
 
     if (Platform.OS === 'android') {
-      urls.push('http://10.0.2.2:3001' + cleanEndpoint);
       urls.push('http://10.0.2.2:3000' + cleanEndpoint);
+      urls.push('http://10.0.2.2:3001' + cleanEndpoint);
     }
-
-    // 2. Port 3000 fallback
-    urls.push('http://localhost:3000' + cleanEndpoint);
-    urls.push('http://127.0.0.1:3000' + cleanEndpoint);
-    urls.push('http://' + LOCAL_WIFI_IP + ':3000' + cleanEndpoint);
 
     return Array.from(new Set(urls));
   }

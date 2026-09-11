@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,6 +14,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
+import { rideService, RideRequestRecord } from '../../services/api/ride-service';
 
 const INITIAL_TAGS = ['On Time', 'Safe Driving', 'Friendly Driver', 'Clean Car'];
 
@@ -22,9 +23,24 @@ export default function TripCompletedScreen() {
   const { rideRequestId, fare, tripCategory, pickup, dropoff } = useLocalSearchParams<{ rideRequestId?: string; fare?: string; tripCategory?: string; pickup?: string; dropoff?: string }>();
   const isReturnTrip = tripCategory === 'RETURN';
 
+  const [dbRide, setDbRide] = useState<RideRequestRecord | null>(null);
   const [rating, setRating] = useState<number>(5);
   const [selectedTags, setSelectedTags] = useState<string[]>(INITIAL_TAGS);
   const [comments, setComments] = useState<string>('');
+
+  useEffect(() => {
+    if (rideRequestId) {
+      rideService.getRideDetails(rideRequestId).then((record) => {
+        if (record) {
+          setDbRide(record);
+        }
+      }).catch(() => {});
+    }
+  }, [rideRequestId]);
+
+  const displayFare = dbRide?.finalFare ? Number(dbRide.finalFare).toFixed(2) : (fare ? Number(fare).toFixed(2) : '710.07');
+  const displayPickup = dbRide?.pickupAddress || pickup || 'Pickup Location';
+  const displayDropoff = dbRide?.dropoffAddress || dropoff || 'Destination';
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -39,6 +55,9 @@ export default function TripCompletedScreen() {
         rideRequestId,
         rating: rating.toString(),
         comments,
+        fare: displayFare,
+        pickup: displayPickup,
+        dropoff: displayDropoff,
         tripCategory: tripCategory || 'ONE_WAY',
       }
     });
@@ -73,7 +92,7 @@ export default function TripCompletedScreen() {
         {/* Big Hero Final Fare Banner */}
         <View style={styles.heroFareBanner}>
           <Text style={styles.heroFareText}>
-            Final Fare: LKR {fare ? Number(fare).toFixed(2) : '710.07'}
+            Final Fare: LKR {displayFare}
           </Text>
         </View>
 
@@ -90,7 +109,7 @@ export default function TripCompletedScreen() {
 
             <View style={styles.mapLabelStrip}>
               <Text style={styles.mapLabelText}>
-                Trip Summary ({isReturnTrip ? 'Return Trip' : 'One Way'}): {pickup || 'Pickup'} to {dropoff || 'Dropoff'}
+                Trip Summary ({isReturnTrip ? 'Return Trip' : 'One Way'}): {displayPickup} to {displayDropoff}
               </Text>
             </View>
           </View>
@@ -171,8 +190,8 @@ export default function TripCompletedScreen() {
         {/* Fare Details Summary Text */}
         <View style={styles.fareBreakdownBox}>
           <Text style={styles.fareBreakdownText}>
-            Fare Details: LKR 95.00 (Trip), LKR 0.00 (Tip),{' '}
-            <Text style={{ fontWeight: '900', color: '#0F172A' }}>Total: LKR 95.00</Text>
+            Fare Details: LKR {displayFare} (Trip), LKR 0.00 (Tip),{' '}
+            <Text style={{ fontWeight: '900', color: '#0F172A' }}>Total: LKR {displayFare}</Text>
           </Text>
         </View>
 

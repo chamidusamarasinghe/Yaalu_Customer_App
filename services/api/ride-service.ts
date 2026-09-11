@@ -57,7 +57,28 @@ export interface SubmitFeedbackPayload {
   tipAmount?: number;
 }
 
+export interface CalculatedFareResponse {
+  distanceKm: number;
+  vehicleType: string;
+  perKmRate: number;
+  baseCharge: number;
+  totalFare: number;
+  commissionPercent: number;
+  commissionAmount: number;
+  riderNetEarnings: number;
+  bidTimeoutMinutes: number;
+  bidTimeoutSeconds: number;
+}
+
 export const rideService = {
+  async getFareRates(): Promise<any[]> {
+    return await apiClient.get('/deliveries/fare-rates');
+  },
+
+  async calculateFare(distanceKm: number, vehicleType?: string): Promise<CalculatedFareResponse> {
+    return await apiClient.post<CalculatedFareResponse>('/deliveries/calculate-fare', { distanceKm, vehicleType });
+  },
+
   async createRideRequest(payload: CreateRidePayload): Promise<RideRequestRecord> {
     const result = await apiClient.post<RideRequestRecord>('/deliveries/rides/request', payload);
     console.log('[rideService] Created real backend ride request:', result.id);
