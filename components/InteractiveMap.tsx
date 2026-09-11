@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -32,24 +32,33 @@ export default function InteractiveMap({
   const webViewRef = useRef<WebView>(null);
 
   // Auto-recenter view on active markers if present
-  const mapCenter = markers.length > 0 ? { latitude: markers[0].latitude, longitude: markers[0].longitude } : center;
+  const validMarkers = markers.filter(
+    (m) => m && typeof m.latitude === 'number' && typeof m.longitude === 'number' && !isNaN(m.latitude) && !isNaN(m.longitude)
+  );
 
-  // Pure OpenStreetMap implementation using OpenLayers (ol.js & ol.source.OSM)
-  const openStreetMapHtml = `
+  const mapCenter = validMarkers.length > 0
+    ? { latitude: validMarkers[0].latitude, longitude: validMarkers[0].longitude }
+    : center;
+
+  // Rock-solid Leaflet.js HTML with OpenStreetMap Tiles
+  const leafletMapHtml = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css" />
-      <script src="https://cdn.jsdelivr.net/npm/ol@v9.2.4/dist/ol.js"></script>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <style>
-        body, html, #map {
-          margin: 0;
-          padding: 0;
+        html, body, #map {
           width: 100%;
           height: 100%;
-          background-color: #e2e8f0;
+          margin: 0;
+          padding: 0;
+          background: #e2e8f0;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .leaflet-container {
+          background: #e2e8f0 !important;
         }
         .custom-pin-pickup {
           background-color: #061138;
@@ -58,11 +67,10 @@ export default function InteractiveMap({
           border-radius: 16px;
           font-size: 12px;
           font-weight: 800;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.35);
           border: 2px solid #fdb813;
-          text-align: center;
           white-space: nowrap;
-          cursor: pointer;
+          text-align: center;
         }
         .custom-pin-drop {
           background-color: #ea580c;
@@ -71,11 +79,10 @@ export default function InteractiveMap({
           border-radius: 16px;
           font-size: 12px;
           font-weight: 800;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.35);
           border: 2px solid white;
-          text-align: center;
           white-space: nowrap;
-          cursor: pointer;
+          text-align: center;
         }
         .custom-pin-driver {
           background-color: #fdb813;
@@ -84,52 +91,32 @@ export default function InteractiveMap({
           border-radius: 20px;
           font-size: 12px;
           font-weight: 800;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.35);
           border: 2px solid #061138;
-          text-align: center;
           white-space: nowrap;
-        }
-        .ol-zoom {
-          top: auto !important;
-          bottom: 15px !important;
-          right: 15px !important;
-          left: auto !important;
-        }
-        .ol-zoom button {
-          background-color: #061138 !important;
-          color: #ffffff !important;
-          border-radius: 8px !important;
-          width: 32px !important;
-          height: 32px !important;
-          font-size: 16px !important;
-          margin: 2px !important;
-          border: none !important;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.2) !important;
+          text-align: center;
         }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
-        var initialLng = ${mapCenter.longitude};
         var initialLat = ${mapCenter.latitude};
+        var initialLng = ${mapCenter.longitude};
 
-        // OpenStreetMap Layer via OpenLayers OSM Source
-        var osmLayer = new ol.layer.Tile({
-          source: new ol.source.OSM()
+        var map = L.map('map', {
+          center: [initialLat, initialLng],
+          zoom: ${zoom},
+          zoomControl: false,
+          attributionControl: false
         });
 
-        var mapView = new ol.View({
-          center: ol.proj.fromLonLat([initialLng, initialLat]),
-          zoom: ${zoom}
-        });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          subdomains: ['a', 'b', 'c']
+        }).addTo(map);
 
-        var map = new ol.Map({
-          target: 'map',
-          layers: [osmLayer],
-          view: mapView,
-          controls: ol.control.defaults.defaults({ attribution: false })
-        });
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         function notifyLocationSelected(lat, lng) {
           var msg = JSON.stringify({ type: 'location_selected', lat: lat, lng: lng });
@@ -141,63 +128,61 @@ export default function InteractiveMap({
           }
         }
 
-        // Render Markers using OpenLayers Overlays
-        var markersData = ${JSON.stringify(markers)};
-        markersData.forEach(function(m) {
-          var el = document.createElement('div');
-          var pinType = m.type || 'pickup';
-          el.className = pinType === 'drop' ? 'custom-pin-drop' : (pinType === 'driver' ? 'custom-pin-driver' : 'custom-pin-pickup');
-          el.innerHTML = (pinType === 'drop' ? '🎯 ' : (pinType === 'driver' ? '🛵 ' : '📍 ')) + (m.title || 'Location');
+        var markersData = ${JSON.stringify(validMarkers)};
+        var latLngs = [];
 
-          var overlay = new ol.Overlay({
-            element: el,
-            positioning: 'bottom-center',
-            stopEvent: false,
-            position: ol.proj.fromLonLat([m.longitude, m.latitude])
+        markersData.forEach(function(m) {
+          var pinType = m.type || 'pickup';
+          var className = pinType === 'drop' ? 'custom-pin-drop' : (pinType === 'driver' ? 'custom-pin-driver' : 'custom-pin-pickup');
+          var labelHtml = (pinType === 'drop' ? '🎯 ' : (pinType === 'driver' ? '🛵 ' : '📍 ')) + (m.title || 'Location');
+
+          var customIcon = L.divIcon({
+            className: 'leaflet-div-icon',
+            html: '<div class="' + className + '">' + labelHtml + '</div>',
+            iconSize: [120, 36],
+            iconAnchor: [60, 18]
           });
-          map.addOverlay(overlay);
+
+          L.marker([m.latitude, m.longitude], { icon: customIcon }).addTo(map);
+          latLngs.push([m.latitude, m.longitude]);
         });
 
-        // Interactive Picker Logic
+        var polyline = null;
+        if (${showRoute} && latLngs.length >= 2) {
+          polyline = L.polyline(latLngs, {
+            color: '#061138',
+            weight: 5,
+            opacity: 0.85,
+            dashArray: '8, 8'
+          }).addTo(map);
+
+          try {
+            map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+          } catch(e) {}
+        } else if (latLngs.length === 1) {
+          map.setView(latLngs[0], 14);
+        }
+
         if (${interactivePicker}) {
-          map.on('click', function(evt) {
-            var lonlat = ol.proj.toLonLat(evt.coordinate);
-            var lng = lonlat[0];
-            var lat = lonlat[1];
-            notifyLocationSelected(lat, lng);
+          map.on('click', function(e) {
+            notifyLocationSelected(e.latlng.lat, e.latlng.lng);
           });
         }
 
-        // Auto recenter on single marker or fit extent for multiple markers
-        if (markersData.length === 1) {
-          map.getView().setCenter(ol.proj.fromLonLat([markersData[0].longitude, markersData[0].latitude]));
-          map.getView().setZoom(13);
-        } else if (${showRoute} && markersData.length >= 2) {
-          var coords = markersData.map(function(m) {
-            return ol.proj.fromLonLat([m.longitude, m.latitude]);
-          });
-          var routeFeature = new ol.Feature({
-            geometry: new ol.geom.LineString(coords)
-          });
-          var routeLayer = new ol.layer.Vector({
-            source: new ol.source.Vector({ features: [routeFeature] }),
-            style: new ol.style.Style({
-              stroke: new ol.style.Stroke({
-                color: '#061138',
-                width: 5,
-                lineDash: [8, 8]
-              })
-            })
-          });
-          map.addLayer(routeLayer);
-          map.getView().fit(routeFeature.getGeometry().getExtent(), { padding: [50, 50, 50, 50] });
-        }
+        setTimeout(function() {
+          map.invalidateSize();
+          if (polyline) {
+            try {
+              map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+            } catch(e) {}
+          }
+        }, 300);
       </script>
     </body>
     </html>
   `;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (Platform.OS === 'web') {
       const handleWebMessage = (event: MessageEvent) => {
         try {
@@ -225,7 +210,7 @@ export default function InteractiveMap({
     <View style={[styles.container, { height: height as any }]}>
       {Platform.OS === 'web' ? (
         <iframe
-          srcDoc={openStreetMapHtml}
+          srcDoc={leafletMapHtml}
           style={{ width: '100%', height: '100%', border: 'none' }}
           title="OpenStreetMap Location Picker"
         />
@@ -233,7 +218,7 @@ export default function InteractiveMap({
         <WebView
           ref={webViewRef}
           originWhitelist={['*']}
-          source={{ html: openStreetMapHtml }}
+          source={{ html: leafletMapHtml }}
           style={styles.webview}
           javaScriptEnabled={true}
           domStorageEnabled={true}
@@ -255,4 +240,3 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
 });
-

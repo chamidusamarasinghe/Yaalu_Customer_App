@@ -104,31 +104,16 @@ const SRI_LANKA_CITIES: Record<string, { lat: number; lng: number }> = {
   ella: { lat: 6.8667, lng: 81.0466 },
 };
 
-function stringHashCoords(str: string): { latitude: number; longitude: number } {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  const latOffset = ((Math.abs(hash) % 1000) / 1000) * 0.12 - 0.06;
-  const lngOffset = ((Math.abs(hash >> 3) % 1000) / 1000) * 0.12 - 0.06;
-  return {
-    latitude: 6.9271 + latOffset,
-    longitude: 79.8612 + lngOffset,
-  };
-}
-
-async function geocodeAddress(query: string): Promise<{ latitude: number; longitude: number }> {
-  if (!query || query.trim().length === 0) {
-    return { latitude: 6.9271, longitude: 79.8612 };
+async function geocodeAddress(query: string): Promise<{ latitude: number; longitude: number } | null> {
+  if (!query || query.trim().length < 2) {
+    return null;
   }
   const clean = query.trim().toLowerCase();
 
-  // 1. Instant match from Sri Lankan cities dictionary
-  for (const cityKey of Object.keys(SRI_LANKA_CITIES)) {
-    if (clean.includes(cityKey)) {
-      const city = SRI_LANKA_CITIES[cityKey];
-      return { latitude: city.lat, longitude: city.lng };
+  // 1. Exact or partial match from Sri Lankan cities dictionary
+  for (const [cityKey, coords] of Object.entries(SRI_LANKA_CITIES)) {
+    if (clean === cityKey || clean.includes(cityKey) || (clean.length >= 3 && cityKey.startsWith(clean))) {
+      return { latitude: coords.lat, longitude: coords.lng };
     }
   }
 
@@ -153,8 +138,17 @@ async function geocodeAddress(query: string): Promise<{ latitude: number; longit
     // Ignore network errors
   }
 
-  // 3. Guaranteed Fallback to deterministic location hash within Sri Lanka
-  return stringHashCoords(clean);
+  // 3. Deterministic Hash across full Sri Lanka bounds (Lat 6.0 to 9.5, Lng 79.8 to 81.5)
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = (hash << 5) - hash + clean.charCodeAt(i);
+    hash |= 0;
+  }
+  const absHash = Math.abs(hash);
+  const lat = 6.0 + ((absHash % 1000) / 1000) * 3.5;
+  const lng = 79.8 + (((absHash >> 3) % 1000) / 1000) * 1.7;
+
+  return { latitude: lat, longitude: lng };
 }
 
 export default function RideDestinationScreen() {
@@ -205,13 +199,23 @@ export default function RideDestinationScreen() {
     }
   };
 
-  const handleProceedToVehicle = () => {
+  const handleProceedToVehicle = async () => {
     if (!pickupLocation.trim() || !dropLocation.trim()) {
       Alert.alert(
         'Select Locations',
         'Please select both pickup and dropoff locations on the map or type them in before proceeding.'
       );
       return;
+    }
+
+    let pCoords = pickupCoords;
+    if (!pCoords) {
+      pCoords = await geocodeAddress(pickupLocation);
+    }
+
+    let dCoords = dropCoords;
+    if (!dCoords) {
+      dCoords = await geocodeAddress(dropLocation);
     }
 
     router.push({
@@ -221,10 +225,10 @@ export default function RideDestinationScreen() {
         tripCategory: tripType,
         pickup: pickupLocation,
         dropoff: dropLocation,
-        pickupLat: pickupCoords?.latitude ? String(pickupCoords.latitude) : undefined,
-        pickupLng: pickupCoords?.longitude ? String(pickupCoords.longitude) : undefined,
-        dropoffLat: dropCoords?.latitude ? String(dropCoords.latitude) : undefined,
-        dropoffLng: dropCoords?.longitude ? String(dropCoords.longitude) : undefined,
+        pickupLat: pCoords?.latitude ? String(pCoords.latitude) : undefined,
+        pickupLng: pCoords?.longitude ? String(pCoords.longitude) : undefined,
+        dropoffLat: dCoords?.latitude ? String(dCoords.latitude) : undefined,
+        dropoffLng: dCoords?.longitude ? String(dCoords.longitude) : undefined,
       },
     });
   };

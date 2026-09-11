@@ -29,8 +29,8 @@ export default function ConfirmPickupScreen() {
     dropoffLat?: string;
     dropoffLng?: string;
   }>();
-  const initialLat = pickupLat ? parseFloat(pickupLat) : 6.8413;
-  const initialLng = pickupLng ? parseFloat(pickupLng) : 79.9654;
+  const initialLat = pickupLat ? parseFloat(pickupLat) : 6.9271;
+  const initialLng = pickupLng ? parseFloat(pickupLng) : 79.8612;
   const [pickupCoords, setPickupCoords] = useState({ latitude: initialLat, longitude: initialLng });
   const [loading, setLoading] = useState(false);
 
@@ -60,6 +60,7 @@ export default function ConfirmPickupScreen() {
           pickupLng: String(pickupCoords.longitude),
           dropoffLat: dropoffLat ? String(dropoffLat) : undefined,
           dropoffLng: dropoffLng ? String(dropoffLng) : undefined,
+          startPin: record.startPin || '4200',
         }
       });
     } catch (e) {
@@ -123,8 +124,8 @@ export default function ConfirmPickupScreen() {
               <Ionicons name="location-sharp" size={20} color="#2563EB" />
             </View>
             <View style={styles.addressTextCol}>
-              <Text style={styles.addressStreetTitle}>High Level Road</Text>
-              <Text style={styles.addressAreaSubtitle}>Makumbura, Colombo</Text>
+              <Text style={styles.addressStreetTitle} numberOfLines={1}>{pickup || 'Pickup Location'}</Text>
+              <Text style={styles.addressAreaSubtitle} numberOfLines={1}>{dropoff ? `Destination: ${dropoff}` : 'Selected Pickup Spot'}</Text>
             </View>
           </View>
 

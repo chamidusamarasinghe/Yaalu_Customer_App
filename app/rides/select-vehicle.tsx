@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,32 +7,34 @@ import {
   ScrollView,
   StatusBar,
   Platform,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap from '../../components/InteractiveMap';
+import { cardService } from '../../services/api/card-service';
 
 interface VehicleOption {
   id: string;
   name: string;
   capacity: number;
   eta: string;
-  price: string;
-  priceValue: number;
-  rewardStars: string;
+  basePrice: number;
+  perKmRate: number;
   iconName: keyof typeof Ionicons.glyphMap;
 }
 
-const VEHICLES: VehicleOption[] = [
+const VEHICLE_CONFIGS: VehicleOption[] = [
   {
     id: 'bike',
     name: 'Bike',
     capacity: 1,
     eta: 'In 1 min',
-    price: 'LKR 710.07',
-    priceValue: 710.07,
-    rewardStars: 'Earn 7.1 stars',
+    basePrice: 150,
+    perKmRate: 80,
     iconName: 'bicycle',
   },
   {
@@ -40,9 +42,8 @@ const VEHICLES: VehicleOption[] = [
     name: 'Flex',
     capacity: 3,
     eta: 'In 1 min',
-    price: 'LKR 1439.30',
-    priceValue: 1439.3,
-    rewardStars: 'Earn 14.4 stars',
+    basePrice: 300,
+    perKmRate: 134,
     iconName: 'car-sport',
   },
   {
@@ -50,12 +51,31 @@ const VEHICLES: VehicleOption[] = [
     name: 'Mini',
     capacity: 3,
     eta: 'In 1 min',
-    price: 'LKR 1891.55',
-    priceValue: 1891.55,
-    rewardStars: 'Earn 18.9 stars',
+    basePrice: 400,
+    perKmRate: 175,
     iconName: 'bus',
   },
 ];
+
+// Calculate Haversine distance between 2 geo coordinates in Kilometers
+function calculateDistanceKm(lat1?: string, lon1?: string, lat2?: string, lon2?: string): number {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 7.0; // Default fallback distance 7km
+  const p1 = parseFloat(lat1);
+  const l1 = parseFloat(lon1);
+  const p2 = parseFloat(lat2);
+  const l2 = parseFloat(lon2);
+  if (isNaN(p1) || isNaN(l1) || isNaN(p2) || isNaN(l2)) return 7.0;
+
+  const R = 6371; // Earth radius in km
+  const dLat = ((p2 - p1) * Math.PI) / 180;
+  const dLon = ((l2 - l1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((p1 * Math.PI) / 180) * Math.cos((p2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+  return distance > 0.5 ? distance : 1.0;
+}
 
 export default function SelectVehicleScreen() {
   const router = useRouter();
@@ -69,7 +89,85 @@ export default function SelectVehicleScreen() {
     dropoffLat?: string;
     dropoffLng?: string;
   }>();
+
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('bike');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD'>('CASH');
+  const [defaultCardMask, setDefaultCardMask] = useState<string>('');
+
+  // Modals & User Selection state
+  const [promoModalVisible, setPromoModalVisible] = useState(false);
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountPercent: number } | null>(null);
+
+  const [noteModalVisible, setNoteModalVisible] = useState(false);
+  const [noteInput, setNoteInput] = useState('');
+  const [driverNote, setDriverNote] = useState('');
+
+  // Resolved coordinates with fallbacks
+  const pLatNum = pickupLat ? parseFloat(pickupLat) : 6.9271;
+  const pLngNum = pickupLng ? parseFloat(pickupLng) : 79.8612;
+  const dLatNum = dropoffLat ? parseFloat(dropoffLat) : 6.8413;
+  const dLngNum = dropoffLng ? parseFloat(dropoffLng) : 79.9654;
+
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number }>({ lat: pLatNum, lng: pLngNum });
+  const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number }>({ lat: dLatNum, lng: dLngNum });
+
+  // Calculate distance in km dynamically from map parameters
+  const tripDistanceKm = calculateDistanceKm(
+    String(pickupCoords.lat),
+    String(pickupCoords.lng),
+    String(dropoffCoords.lat),
+    String(dropoffCoords.lng)
+  );
+
+  // Load customer's default payment card from DB
+  useEffect(() => {
+    cardService.getUserCards().then((cards) => {
+      if (cards && cards.length > 0) {
+        setDefaultCardMask(cards[0].cardNumberMask);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Compute calculated vehicles with dynamic fares and promo discounts
+  const calculatedVehicles = VEHICLE_CONFIGS.map((v) => {
+    let rawPrice = v.basePrice + tripDistanceKm * v.perKmRate;
+    if (appliedPromo) {
+      rawPrice = rawPrice * (1 - appliedPromo.discountPercent / 100);
+    }
+    const finalPrice = Math.max(100, Math.round(rawPrice * 100) / 100);
+    const stars = (finalPrice * 0.01).toFixed(1);
+    return {
+      ...v,
+      priceValue: finalPrice,
+      price: `LKR ${finalPrice.toFixed(2)}`,
+      rewardStars: `Earn ${stars} stars`,
+    };
+  });
+
+  const handleApplyPromo = () => {
+    const cleanCode = promoInput.trim().toUpperCase();
+    if (!cleanCode) {
+      Alert.alert('Invalid Code', 'Please enter a valid promo code.');
+      return;
+    }
+    if (cleanCode === 'WELCOME20' || cleanCode === 'YAALU20') {
+      setAppliedPromo({ code: cleanCode, discountPercent: 20 });
+      setPromoModalVisible(false);
+      Alert.alert('Promo Applied!', 'You saved 20% on this trip.');
+    } else if (cleanCode === 'SAVE50' || cleanCode === 'FREE50') {
+      setAppliedPromo({ code: cleanCode, discountPercent: 50 });
+      setPromoModalVisible(false);
+      Alert.alert('Promo Applied!', '50% discount applied to your fare.');
+    } else {
+      Alert.alert('Invalid Promo', 'Code not recognized. Try YAALU20 or SAVE50.');
+    }
+  };
+
+  const handleSaveNote = () => {
+    setDriverNote(noteInput.trim());
+    setNoteModalVisible(false);
+  };
 
   const handleBookNow = () => {
     const routeParams = {
@@ -78,10 +176,13 @@ export default function SelectVehicleScreen() {
       vehicleType: selectedVehicleId,
       pickup: pickup || 'Pickup Location',
       dropoff: dropoff || 'Dropoff Location',
-      pickupLat,
-      pickupLng,
-      dropoffLat,
-      dropoffLng,
+      pickupLat: String(pickupCoords.lat),
+      pickupLng: String(pickupCoords.lng),
+      dropoffLat: String(dropoffCoords.lat),
+      dropoffLng: String(dropoffCoords.lng),
+      paymentMethod,
+      promoCode: appliedPromo?.code,
+      driverNote,
     };
 
     if (mode === 'bidding') {
@@ -91,30 +192,25 @@ export default function SelectVehicleScreen() {
     }
   };
 
-  // Build dynamic markers from params
-  const vehicleMarkers: any[] = [];
-  if (pickupLat && pickupLng) {
-    vehicleMarkers.push({
+  // Build dynamic markers from resolved coordinates
+  const vehicleMarkers: any[] = [
+    {
       id: 'p1',
-      latitude: parseFloat(pickupLat),
-      longitude: parseFloat(pickupLng),
-      title: pickup || 'Pickup',
+      latitude: pickupCoords.lat,
+      longitude: pickupCoords.lng,
+      title: pickup || 'Pickup Location',
       type: 'pickup',
-    });
-  }
-  if (dropoffLat && dropoffLng) {
-    vehicleMarkers.push({
+    },
+    {
       id: 'd1',
-      latitude: parseFloat(dropoffLat),
-      longitude: parseFloat(dropoffLng),
-      title: dropoff || 'Dropoff',
+      latitude: dropoffCoords.lat,
+      longitude: dropoffCoords.lng,
+      title: dropoff || 'Destination',
       type: 'drop',
-    });
-  }
+    },
+  ];
 
-  const mapCenter = vehicleMarkers.length > 0
-    ? { latitude: vehicleMarkers[0].latitude, longitude: vehicleMarkers[0].longitude }
-    : { latitude: 6.9271, longitude: 79.8612 };
+  const mapCenter = { latitude: pickupCoords.lat, longitude: pickupCoords.lng };
 
   return (
     <View style={styles.container}>
@@ -147,7 +243,12 @@ export default function SelectVehicleScreen() {
         {/* Lower Screen: Bottom-Anchored Vehicle Options & Booking Section */}
         <View style={styles.vehicleOptionsPanel}>
           {/* Section Subheader */}
-          <Text style={styles.panelTitle}>Select Vehicle</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={styles.panelTitle}>Select Vehicle</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B' }}>
+              Est. Distance: {tripDistanceKm.toFixed(1)} km
+            </Text>
+          </View>
 
           {/* Compact Vehicle Cards Row */}
           <ScrollView
@@ -155,7 +256,7 @@ export default function SelectVehicleScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.compactCardsRow}
           >
-            {VEHICLES.map((vehicle) => {
+            {calculatedVehicles.map((vehicle) => {
               const isSelected = selectedVehicleId === vehicle.id;
               return (
                 <TouchableOpacity
@@ -189,29 +290,65 @@ export default function SelectVehicleScreen() {
             })}
           </ScrollView>
 
-          {/* Payment Options Strip */}
+          {/* Payment & Promo Strip Row */}
           <View style={styles.paymentStripRow}>
-            <TouchableOpacity activeOpacity={0.8} style={styles.stripOptionBtn}>
-              <Ionicons name="cash" size={18} color="#059669" style={{ marginRight: 5 }} />
-              <Text style={styles.stripOptionText}>Cash</Text>
+            {/* Payment Method Switcher (Cash vs Card) */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.stripOptionBtn}
+              onPress={() => setPaymentMethod(prev => prev === 'CASH' ? 'CARD' : 'CASH')}
+            >
+              <Ionicons
+                name={paymentMethod === 'CASH' ? 'cash' : 'card'}
+                size={18}
+                color={paymentMethod === 'CASH' ? '#059669' : '#2563EB'}
+                style={{ marginRight: 5 }}
+              />
+              <Text style={styles.stripOptionText}>
+                {paymentMethod === 'CASH' ? 'Cash' : (defaultCardMask ? `Card (${defaultCardMask.slice(-4)})` : 'Card')}
+              </Text>
             </TouchableOpacity>
 
             <View style={styles.verticalDivider} />
 
-            <TouchableOpacity activeOpacity={0.8} style={styles.stripOptionBtn}>
-              <Ionicons name="create-outline" size={16} color="#64748B" style={{ marginRight: 5 }} />
-              <Text style={styles.stripOptionText}>Add note</Text>
+            {/* Add Driver Note */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.stripOptionBtn}
+              onPress={() => setNoteModalVisible(true)}
+            >
+              <Ionicons
+                name={driverNote ? 'checkmark-circle' : 'create-outline'}
+                size={16}
+                color={driverNote ? '#059669' : '#64748B'}
+                style={{ marginRight: 5 }}
+              />
+              <Text style={[styles.stripOptionText, driverNote && { color: '#059669' }]} numberOfLines={1}>
+                {driverNote ? `Note: ${driverNote}` : 'Add note'}
+              </Text>
             </TouchableOpacity>
 
             <View style={styles.verticalDivider} />
 
-            <TouchableOpacity activeOpacity={0.8} style={styles.stripOptionBtn}>
-              <Ionicons name="pricetag-outline" size={16} color="#64748B" style={{ marginRight: 5 }} />
-              <Text style={styles.stripOptionText}>Add Promo</Text>
+            {/* Add Promo Code */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.stripOptionBtn}
+              onPress={() => setPromoModalVisible(true)}
+            >
+              <Ionicons
+                name={appliedPromo ? 'pricetag' : 'pricetag-outline'}
+                size={16}
+                color={appliedPromo ? '#D97706' : '#64748B'}
+                style={{ marginRight: 5 }}
+              />
+              <Text style={[styles.stripOptionText, appliedPromo && { color: '#D97706' }]}>
+                {appliedPromo ? appliedPromo.code : 'Add Promo'}
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Primary Action Button: Request Driver Bids */}
+          {/* Primary Action Button: Book Now */}
           <TouchableOpacity
             activeOpacity={0.88}
             style={styles.bookNowBtn}
@@ -221,6 +358,66 @@ export default function SelectVehicleScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* PROMO CODE MODAL */}
+      <Modal visible={promoModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Apply Promo Code</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Enter Promo Code (e.g. YAALU20)"
+              value={promoInput}
+              onChangeText={setPromoInput}
+              autoCapitalize="characters"
+            />
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: '#F1F5F9' }]}
+                onPress={() => setPromoModalVisible(false)}
+              >
+                <Text style={{ fontWeight: '700', color: '#475569' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: '#FDB813' }]}
+                onPress={handleApplyPromo}
+              >
+                <Text style={{ fontWeight: '900', color: '#061138' }}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* DRIVER NOTE MODAL */}
+      <Modal visible={noteModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Note for Driver</Text>
+            <TextInput
+              style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
+              placeholder="e.g. Please wait near the main gate"
+              multiline
+              value={noteInput}
+              onChangeText={setNoteInput}
+            />
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: '#F1F5F9' }]}
+                onPress={() => setNoteModalVisible(false)}
+              >
+                <Text style={{ fontWeight: '700', color: '#475569' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: '#FDB813' }]}
+                onPress={handleSaveNote}
+              >
+                <Text style={{ fontWeight: '900', color: '#061138' }}>Save Note</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Yellow Bottom Footer Navigation Bar */}
       <CustomBottomTabBar activeTab="HOME" />
@@ -390,6 +587,51 @@ const styles = StyleSheet.create({
     color: '#061138',
     fontSize: 17,
     fontWeight: '900',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 14,
+  },
+  modalInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#0F172A',
+    marginBottom: 16,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  modalBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
 });
 

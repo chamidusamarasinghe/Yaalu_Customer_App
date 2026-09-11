@@ -8,6 +8,9 @@ import {
   StatusBar,
   Platform,
   Image,
+  Alert,
+  Share,
+  Linking,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,8 +37,12 @@ export default function InTripScreen() {
   const dLat = dropoffLat ? parseFloat(dropoffLat) : (pickupLat ? pLat - 0.05 : 6.8413);
   const dLng = dropoffLng ? parseFloat(dropoffLng) : (pickupLng ? pLng - 0.05 : 79.9654);
 
+  const driverLat = pLat + (dLat - pLat) * 0.4;
+  const driverLng = pLng + (dLng - pLng) * 0.4;
+
   const markersList: MapMarker[] = [
     { id: "1", latitude: pLat, longitude: pLng, title: pickup || "Pickup", type: "pickup" },
+    { id: "driver", latitude: driverLat, longitude: driverLng, title: "Ravi S. (Driver)", type: "driver" },
     { id: "2", latitude: dLat, longitude: dLng, title: dropoff || "Dropoff", type: "drop" },
   ];
 
@@ -148,25 +155,64 @@ export default function InTripScreen() {
 
         {/* Quick Action Buttons Row: Share & Safety */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity activeOpacity={0.8} style={styles.actionBtnOutline}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.actionBtnOutline}
+            onPress={async () => {
+              try {
+                await Share.share({
+                  message: `Tracking my active Yaalu ride to ${dropoff || 'destination'}! Live Status: In Trip.`,
+                });
+              } catch (e) {
+                Alert.alert('Share Trip', 'Sharing link generated: https://yaalu.app/track/ride-101');
+              }
+            }}
+          >
             <Ionicons name="share-social-outline" size={18} color="#061138" style={{ marginRight: 6 }} />
             <Text style={styles.actionBtnText}>Share Trip</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity activeOpacity={0.8} style={styles.actionBtnOutline}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.actionBtnOutline}
+            onPress={() => {
+              Alert.alert(
+                '🛡️ Safety Toolkit',
+                'Emergency Services & Security Options:\n\n1. Police Emergency Hotline (119)\n2. Share Live GPS Location with Emergency Contacts\n3. 24/7 Yaalu Safety Command Center',
+                [
+                  { text: 'Call 119 Police', onPress: () => Linking.openURL('tel:119').catch(() => {}) },
+                  { text: 'Close', style: 'cancel' },
+                ]
+              );
+            }}
+          >
             <Ionicons name="shield-checkmark-outline" size={18} color="#061138" style={{ marginRight: 6 }} />
             <Text style={styles.actionBtnText}>Safety Toolkit</Text>
           </TouchableOpacity>
         </View>
 
         {/* Full-width Contact Driver Button */}
-        <TouchableOpacity activeOpacity={0.88} style={styles.contactDriverBtn}>
+        <TouchableOpacity
+          activeOpacity={0.88}
+          style={styles.contactDriverBtn}
+          onPress={() => {
+            Linking.openURL('tel:+94771234567').catch(() => {
+              Alert.alert('Contact Driver', 'Calling Driver Ravi K. (+94 77 123 4567)');
+            });
+          }}
+        >
           <Ionicons name="call" size={20} color="#061138" style={{ marginRight: 8 }} />
           <Text style={styles.contactDriverBtnText}>Contact Driver</Text>
         </TouchableOpacity>
 
         {/* Contact Support Link */}
-        <TouchableOpacity activeOpacity={0.7} style={styles.supportLinkTouch}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={styles.supportLinkTouch}
+          onPress={() => {
+            Alert.alert('Customer Support', 'Yaalu 24/7 Helpline: +94 11 234 5678\nEmail: support@yaalu.lk');
+          }}
+        >
           <Text style={styles.supportLinkText}>Contact Support</Text>
         </TouchableOpacity>
 
