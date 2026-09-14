@@ -1,16 +1,51 @@
-import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, StatusBar, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CurvedHeader from '../../components/CurvedHeader';
+import { authService } from '../../services/api/auth-service';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendOtp = () => {
-    router.push('/auth/verify-otp');
+  const handleSendOtp = async () => {
+    const target = emailOrPhone.trim();
+    if (!target) {
+      Alert.alert('Validation Error ⚠️', 'Please enter your registered email address or phone number.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const res = await authService.forgotPassword(target);
+      if (res.otp) {
+        Alert.alert(
+          'OTP Code Sent 📩',
+          `Your 6-digit verification code is: ${res.otp}\n(Use this code on the next screen)`,
+          [
+            {
+              text: 'Proceed to Verify',
+              onPress: () => router.push(`/auth/verify-otp?target=${encodeURIComponent(target)}`),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('OTP Code Sent 📩', res.message || 'Check your inbox or SMS for the 6-digit verification code.', [
+          {
+            text: 'Proceed to Verify',
+            onPress: () => router.push(`/auth/verify-otp?target=${encodeURIComponent(target)}`),
+          },
+        ]);
+      }
+    } catch (err: any) {
+      console.warn('[ForgotPassword Error]:', err?.message || err);
+      Alert.alert('Request Failed ⚠️', err?.message || 'Failed to send OTP code. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -18,7 +53,7 @@ export default function ForgotPasswordScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
       {/* Yellow Curved Arch Header */}
-      <CurvedHeader height={150}>
+      <CurvedHeader height={150} onBackPress={() => router.replace('/auth/login')}>
         <View style={styles.mailBadgeWrapper}>
           <View style={styles.mailBadgeSquare}>
             <Ionicons name="mail" size={28} color="#FFFFFF" />
@@ -37,7 +72,7 @@ export default function ForgotPasswordScreen() {
         {/* Title & Subtitle */}
         <Text style={styles.title}>Forgot Password?</Text>
         <Text style={styles.subtitle}>
-          Enter your email or phone number and we'll send you a verification code.
+          Enter your email address or phone number and we'll send you a 6-digit verification code.
         </Text>
 
         {/* Input Field */}
@@ -54,6 +89,7 @@ export default function ForgotPasswordScreen() {
               value={emailOrPhone}
               onChangeText={setEmailOrPhone}
               autoCapitalize="none"
+              keyboardType="email-address"
             />
           </View>
         </View>
@@ -61,10 +97,22 @@ export default function ForgotPasswordScreen() {
         {/* Send OTP Button */}
         <TouchableOpacity
           activeOpacity={0.88}
-          style={styles.sendOtpButton}
+          style={[styles.sendOtpButton, isLoading && { opacity: 0.7 }]}
           onPress={handleSendOtp}
+          disabled={isLoading}
         >
-          <Text style={styles.sendOtpButtonText}>Send OTP</Text>
+          <Text style={styles.sendOtpButtonText}>
+            {isLoading ? 'Sending Code...' : 'Send OTP'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Back to Login Link */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={styles.backToLoginBtn}
+          onPress={() => router.replace('/auth/login')}
+        >
+          <Text style={styles.backToLoginText}>Back to Login</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -166,10 +214,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 4,
+    marginBottom: 16,
   },
   sendOtpButtonText: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
+  },
+  backToLoginBtn: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  backToLoginText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0036AA',
   },
 });

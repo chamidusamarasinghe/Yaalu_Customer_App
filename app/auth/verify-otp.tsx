@@ -1,15 +1,18 @@
-import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, StatusBar } from 'react-native';
-import { useRouter } from 'expo-router';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, StatusBar, Alert } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CurvedHeader from '../../components/CurvedHeader';
+import { authService } from '../../services/api/auth-service';
 
 export default function VerifyOtpScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ target?: string }>();
+  const target = params.target || '';
 
-  const [otp, setOtp] = useState<string[]>(['1', '2', '3', '4', '5', '6']);
+  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(30);
+  const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<Array<TextInput | null>>([]);
 
   useEffect(() => {
@@ -20,20 +23,14 @@ export default function VerifyOtpScreen() {
   }, []);
 
   const handleChange = (text: string, index: number) => {
+    const cleanText = text.replace(/[^0-9]/g, '');
     const newOtp = [...otp];
-    newOtp[index] = text;
+    newOtp[index] = cleanText;
     setOtp(newOtp);
 
     // Auto-focus next box
-    if (text && index < 5) {
+    if (cleanText && index < 5) {
       inputRefs.current[index + 1]?.focus();
-    }
-
-    // Auto navigate on fill
-    if (newOtp.every((digit) => digit.length > 0)) {
-      setTimeout(() => {
-        router.push('/auth/reset-password');
-      }, 300);
     }
   };
 
@@ -43,22 +40,58 @@ export default function VerifyOtpScreen() {
     }
   };
 
-  const handleResend = () => {
-    if (timer === 0) {
+  const handleResend = async () => {
+    if (timer > 0) return;
+    setIsLoading(true);
+    try {
+      const res = await authService.forgotPassword(target);
       setTimer(30);
+      if (res.otp) {
+        Alert.alert('New Code Sent 📩', `Your new 6-digit verification code is: ${res.otp}`);
+      } else {
+        Alert.alert('New Code Sent 📩', res.message || 'Check your SMS or email for the new code.');
+      }
+    } catch (err: any) {
+      Alert.alert('Resend Failed ⚠️', err?.message || 'Could not resend OTP code.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleverifyOtp = () => {
-    router.push ('/auth/reset-password');
-  }
+  const handleVerifyOtp = async () => {
+    const code = otp.join('');
+    if (code.length < 6) {
+      Alert.alert('Validation Error ⚠️', 'Please enter the complete 6-digit verification code.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const result = await authService.verifyOtp({
+        target: target,
+        code: code,
+      });
+
+      if (result.verified) {
+        router.push(`/auth/reset-password?target=${encodeURIComponent(target)}&otp=${encodeURIComponent(code)}`);
+      } else {
+        Alert.alert('Verification Failed ⚠️', result.message || 'Invalid or expired OTP code. Please check and try again.');
+      }
+    } catch (err: any) {
+      console.warn('[VerifyOtp Error]:', err?.message || err);
+      Alert.alert('Verification Error ⚠️', err?.message || 'Failed to verify OTP code.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
       {/* Curved Header */}
-      <CurvedHeader height={150}>
+      <CurvedHeader height={150} onBackPress={() => router.back()}>
         <View style={styles.mailBadgeWrapper}>
           <View style={styles.mailBadgeSquare}>
             <Ionicons name="mail" size={28} color="#FFFFFF" />
@@ -78,7 +111,7 @@ export default function VerifyOtpScreen() {
         <Text style={styles.title}>Verify OTP</Text>
         <Text style={styles.subtitle}>
           Enter the 6-digit code sent to{'\n'}
-          <Text style={styles.phoneText}>+94 77 123 4567</Text>
+          <Text style={styles.phoneText}>{target || 'your registered contact'}</Text>
         </Text>
 
         {/* 6-Digit Code Input Boxes */}
@@ -118,14 +151,17 @@ export default function VerifyOtpScreen() {
           )}
         </View>
 
-        {/* Send Verify OTP Button */}
-                <TouchableOpacity
-                  activeOpacity={0.88}
-                  style={styles.verifyOtpButton}
-                  onPress={handleverifyOtp}
-                >
-                  <Text style={styles.verifyOtpButtonText}>Verify OTP</Text>
-                </TouchableOpacity>
+        {/* Verify OTP Button */}
+        <TouchableOpacity
+          activeOpacity={0.88}
+          style={[styles.verifyOtpButton, isLoading && { opacity: 0.7 }]}
+          onPress={handleVerifyOtp}
+          disabled={isLoading}
+        >
+          <Text style={styles.verifyOtpButtonText}>
+            {isLoading ? 'Verifying Code...' : 'Verify OTP'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -188,7 +224,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     justifyContent: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
     width: '100%',
   },
   otpBox: {
@@ -206,8 +242,8 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
   },
   otpBoxFilled: {
-    borderColor: '#0F172A',
-    borderWidth: 1.5,
+    borderColor: '#0036AA',
+    borderWidth: 2,
   },
   timerRow: {
     alignItems: 'center',

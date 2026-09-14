@@ -14,7 +14,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import { authService } from '../../services/api/auth-service';
@@ -56,8 +57,8 @@ export default function UserProfileScreen() {
     }
     loadLatestProfile();
   }, []);
-  const [profilePicture, setProfilePicture] = useState(
-    user.profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=250&auto=format&fit=crop&q=80'
+  const [profilePicture, setProfilePicture] = useState<string>(
+    user.profilePicture || user.avatar || user.profilePhoto || ''
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -155,7 +156,11 @@ export default function UserProfileScreen() {
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      await authService.updateProfile({
+      const photoToSend = (profilePicture && profilePicture.startsWith('http') && !profilePicture.includes('images.unsplash.com'))
+        ? profilePicture
+        : undefined;
+
+      const updateRes = await authService.updateProfile({
         id: user.id,
         email: email.trim(),
         firstName,
@@ -165,8 +170,14 @@ export default function UserProfileScreen() {
         nicNumber: nic.trim(),
         city: city.trim(),
         address: address.trim(),
-        profilePicture: profilePicture,
+        profilePicture: photoToSend,
       });
+
+      if (updateRes && updateRes.user) {
+        authService.setCurrentUser(updateRes.user);
+        const u = updateRes.user;
+        if (u.profilePicture) setProfilePicture(u.profilePicture);
+      }
 
       Alert.alert('Profile Updated 🎉', 'Your profile details and picture have been saved to the database!');
     } catch (error: any) {

@@ -63,8 +63,8 @@ export default function CustomerHomeScreen() {
                 style={styles.profileAvatarBtn}
                 onPress={() => router.push('/profile' as any)}
               >
-                {currentUser.profilePicture ? (
-                  <Image source={{ uri: currentUser.profilePicture }} style={styles.headerAvatarImage} />
+                {(currentUser?.profilePicture || currentUser?.avatar || currentUser?.profilePhoto) ? (
+                  <Image source={{ uri: currentUser.profilePicture || currentUser.avatar || currentUser.profilePhoto }} style={styles.headerAvatarImage} />
                 ) : (
                   <Ionicons name="person-circle" size={40} color="#061138" />
                 )}
