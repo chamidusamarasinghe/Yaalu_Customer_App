@@ -58,14 +58,16 @@ class AuthService {
 
   async register(payload: RegisterUserPayload): Promise<AuthResponse> {
     try {
-      const data = await apiClient.post<AuthResponse>('/auth/register', payload);
+      const data = await apiClient.post<any>('/auth/register', payload);
       if (data.accessToken || data.access_token) {
         this.token = data.accessToken || data.access_token || null;
       }
       if (data.user) {
         this.currentUser = data.user;
+      } else if (data.email || data.id) {
+        this.currentUser = data;
       }
-      return data;
+      return { user: this.currentUser, accessToken: this.token || 'dev_token', ...data };
     } catch (err: any) {
       console.log('[Dev Fallback]: Backend server offline. Saving registration payload locally.');
       this.currentUser = {
@@ -88,14 +90,16 @@ class AuthService {
   }
 
   async login(payload: LoginPayload): Promise<AuthResponse> {
-    const data = await apiClient.post<AuthResponse>('/auth/login', payload);
+    const data = await apiClient.post<any>('/auth/login', payload);
     if (data.accessToken || data.access_token) {
       this.token = data.accessToken || data.access_token || null;
     }
     if (data.user) {
       this.currentUser = data.user;
+    } else if (data.email || data.id) {
+      this.currentUser = data;
     }
-    return data;
+    return { user: this.currentUser, accessToken: this.token || 'dev_token', ...data };
   }
 
   async updateProfile(payload: Partial<UserProfile>): Promise<{ user?: UserProfile }> {
