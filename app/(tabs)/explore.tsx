@@ -28,9 +28,9 @@ const isCategoryMatch = (item: ProductItem, category: string): boolean => {
   if (!category || category === 'All Products') return true;
 
   const catLower = category.toLowerCase();
-  const nameLower = item.name.toLowerCase();
-  const descLower = (item.description || '').toLowerCase();
-  const unitLower = (item.unit || '').toLowerCase();
+  const nameLower = (item?.name || (item as any)?.title || '').toLowerCase();
+  const descLower = (item?.description || '').toLowerCase();
+  const unitLower = (item?.unit || '').toLowerCase();
 
   if (catLower === 'fruits') {
     const fruitKeywords = ['fruit', 'apple', 'banana', 'strawberry', 'strawberries', 'mango', 'orange', 'grape', 'papaya', 'pineapple'];
@@ -124,14 +124,17 @@ export default function ShopCatalogScreen() {
 
   // Filter products by category & search query
   const filteredProducts = products.filter((item) => {
-    const nameMatch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const descMatch = item.description ? item.description.toLowerCase().includes(searchQuery.toLowerCase()) : false;
+    const itemName = item?.name || (item as any)?.title || '';
+    const nameMatch = itemName.toLowerCase().includes((searchQuery || '').toLowerCase());
+    const descMatch = item?.description ? item.description.toLowerCase().includes((searchQuery || '').toLowerCase()) : false;
     const matchesSearch = nameMatch || descMatch;
 
     const matchesCategory = isCategoryMatch(item, activeCategory);
 
     return matchesSearch && matchesCategory;
   });
+
+  const displayProducts = (filteredProducts.length > 0 || searchQuery.trim() !== '') ? filteredProducts : products;
 
   return (
     <View style={styles.container}>
@@ -226,7 +229,7 @@ export default function ShopCatalogScreen() {
         ) : (
           /* 2-Column Product Grid */
           <View style={styles.productGrid}>
-            {filteredProducts.map((item) => {
+            {displayProducts.map((item) => {
               const qty = cartQuantities[item.id] || 0;
               return (
                 <TouchableOpacity

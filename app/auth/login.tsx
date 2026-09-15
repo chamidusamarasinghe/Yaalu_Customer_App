@@ -58,6 +58,7 @@ export default function LoginScreen() {
   };
 
   const handleRegisterNow = () => {
+    authService.clearRegistrationDraft();
     router.push('/register/step1');
   };
 

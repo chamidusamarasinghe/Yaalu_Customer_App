@@ -46,12 +46,12 @@ const CITIES_LIST = [
 export default function RegistrationStep2Screen() {
   const router = useRouter();
 
-  const currentUser = authService.getUser();
-  const [email, setEmail] = useState(currentUser.email || '');
-  const [city, setCity] = useState(currentUser.city || '');
-  const [address, setAddress] = useState(currentUser.address || '');
-  const [latitude, setLatitude] = useState<number>(currentUser.latitude || 6.9271);
-  const [longitude, setLongitude] = useState<number>(currentUser.longitude || 79.8612);
+  const draft = authService.getRegistrationDraft();
+  const [email, setEmail] = useState(draft.email || '');
+  const [city, setCity] = useState(draft.city || '');
+  const [address, setAddress] = useState(draft.address || '');
+  const [latitude, setLatitude] = useState<number>(draft.latitude || 6.9271);
+  const [longitude, setLongitude] = useState<number>(draft.longitude || 79.8612);
   const [isGeocoding, setIsGeocoding] = useState(false);
 
   const [isCityModalVisible, setIsCityModalVisible] = useState(false);
@@ -88,8 +88,7 @@ export default function RegistrationStep2Screen() {
     }
 
     // Save Step 2 state (Contact & Address)
-    authService.setCurrentUser({
-      ...authService.getUser(),
+    authService.setRegistrationDraft({
       email: email.trim(),
       city: city,
       address: address.trim() || `${city}, Sri Lanka`,

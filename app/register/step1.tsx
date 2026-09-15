@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -21,12 +21,12 @@ import { uploadService } from '../../services/api/upload-service';
 export default function RegistrationStep1Screen() {
   const router = useRouter();
 
-  const currentUser = authService.getUser();
-  const [firstName, setFirstName] = useState(currentUser.firstName || '');
-  const [lastName, setLastName] = useState(currentUser.lastName || '');
-  const [phoneNumber, setPhoneNumber] = useState(currentUser.phoneNumber || '');
-  const [nicNumber, setNicNumber] = useState(currentUser.nicNumber || '');
-  const [profilePicture, setProfilePicture] = useState<string | null>(currentUser.profilePicture || null);
+  const draft = authService.getRegistrationDraft();
+  const [firstName, setFirstName] = useState(draft.firstName || '');
+  const [lastName, setLastName] = useState(draft.lastName || '');
+  const [phoneNumber, setPhoneNumber] = useState(draft.phoneNumber || '');
+  const [nicNumber, setNicNumber] = useState(draft.nicNumber || '');
+  const [profilePicture, setProfilePicture] = useState<string | null>(draft.profilePicture || null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const processAndUploadPhoto = async (localUri: string) => {
@@ -123,8 +123,7 @@ export default function RegistrationStep1Screen() {
     }
 
     // Save Step 1 state (including Cloudinary HTTPS photo URL)
-    authService.setCurrentUser({
-      ...authService.getUser(),
+    authService.setRegistrationDraft({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phoneNumber: phoneNumber.trim(),

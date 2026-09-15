@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -56,8 +56,8 @@ export default function CreatePasswordScreen() {
       return;
     }
 
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser.email) {
+    const draft = authService.getRegistrationDraft();
+    if (!draft.email) {
       Alert.alert('Registration Error', 'Missing registration details. Please restart registration.');
       router.push('/register/step1');
       return;
@@ -66,25 +66,28 @@ export default function CreatePasswordScreen() {
     setIsLoading(true);
 
     try {
-      const first = (currentUser.firstName || '').trim();
-      const last = (currentUser.lastName || '').trim();
+      const first = (draft.firstName || '').trim();
+      const last = (draft.lastName || '').trim();
       const combinedFullName = [first, last].filter(Boolean).join(' ');
 
       await authService.register({
-        email: currentUser.email,
+        email: draft.email,
         password: password,
-        firstName: currentUser.firstName,
-        lastName: currentUser.lastName,
+        firstName: draft.firstName,
+        lastName: draft.lastName,
         fullName: combinedFullName,
         name: combinedFullName,
-        phoneNumber: currentUser.phoneNumber,
-        nicNumber: currentUser.nicNumber,
-        city: currentUser.city,
-        profilePicture: currentUser.profilePicture,
-        address: currentUser.address,
-        latitude: currentUser.latitude,
-        longitude: currentUser.longitude,
+        phoneNumber: draft.phoneNumber,
+        nicNumber: draft.nicNumber,
+        city: draft.city,
+        profilePicture: draft.profilePicture,
+        address: draft.address,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+        role: 'CUSTOMER',
       });
+
+      authService.clearRegistrationDraft();
 
       Alert.alert(
         'Registration Successful 🎉',

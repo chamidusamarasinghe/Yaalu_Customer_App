@@ -41,10 +41,19 @@ class ShopService {
   async getShopProducts(shopId: string): Promise<any[]> {
     try {
       const products = await apiClient.get<any[]>(`/shops/${shopId}/products`);
-      return products || [];
+      if (products && products.length > 0) {
+        return products;
+      }
+      const allProducts = await apiClient.get<any[]>('/products');
+      return allProducts || [];
     } catch (error) {
       console.warn(`[ShopService Error getShopProducts ${shopId}]:`, error);
-      return [];
+      try {
+        const allProducts = await apiClient.get<any[]>('/products');
+        return allProducts || [];
+      } catch (e) {
+        return [];
+      }
     }
   }
 }

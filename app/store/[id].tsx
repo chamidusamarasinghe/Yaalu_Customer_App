@@ -26,9 +26,9 @@ const isCategoryMatch = (item: ProductItem, category: string): boolean => {
   if (!category || category === 'All Products') return true;
 
   const catLower = category.toLowerCase();
-  const nameLower = item.name.toLowerCase();
-  const descLower = (item.description || '').toLowerCase();
-  const unitLower = (item.unit || '').toLowerCase();
+  const nameLower = (item?.name || (item as any)?.title || '').toLowerCase();
+  const descLower = (item?.description || '').toLowerCase();
+  const unitLower = (item?.unit || '').toLowerCase();
 
   if (catLower === 'fruits') {
     const fruitKeywords = ['fruit', 'apple', 'banana', 'strawberry', 'strawberries', 'mango', 'orange', 'grape', 'papaya', 'pineapple'];
@@ -114,6 +114,7 @@ export default function StoreDetailsScreen() {
   const cartTotal = cartService.getSubtotal();
 
   const filteredProducts = products.filter((p) => isCategoryMatch(p, activeCategory));
+  const displayProducts = filteredProducts.length > 0 ? filteredProducts : products;
 
   return (
     <View style={styles.container}>
@@ -201,14 +202,14 @@ export default function StoreDetailsScreen() {
             </Text>
           </View>
 
-          {filteredProducts.length === 0 ? (
+          {products.length === 0 ? (
             <View style={[styles.card, { alignItems: 'center', paddingVertical: 24 }]}>
               <Ionicons name="basket-outline" size={36} color="#94A3B8" />
               <Text style={{ marginTop: 8, color: '#64748B', fontWeight: '600' }}>No products found in "{activeCategory}".</Text>
             </View>
           ) : (
             <View style={styles.featuredGrid}>
-              {filteredProducts.map((p) => {
+              {displayProducts.map((p) => {
                 const qty = cartQuantities[p.id] || 0;
                 return (
                   <TouchableOpacity

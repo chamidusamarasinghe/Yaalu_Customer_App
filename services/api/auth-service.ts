@@ -61,23 +61,25 @@ const TOKEN_STORAGE_KEY = '@yaalu_token_v2';
 
 function normalizeUser(rawUser: any): UserProfile {
   if (!rawUser) return {};
-  const profile = rawUser.customerProfile || rawUser.profile || rawUser.riderProfile || rawUser.shopProfile || {};
-  const profilePic = rawUser.profilePicture || rawUser.profilePhoto || rawUser.avatar || profile.profilePicture || profile.profilePhoto || profile.avatar || '';
-  const fullName = rawUser.fullName || rawUser.name || profile.fullName || (rawUser.firstName ? `${rawUser.firstName} ${rawUser.lastName || ''}`.trim() : '');
-  const phone = rawUser.phoneNumber || rawUser.phone || rawUser.mobile || profile.phoneNumber || profile.phone || profile.mobile || '';
-  const city = rawUser.city || profile.city || '';
-  const address = rawUser.address || rawUser.deliveryAddress || profile.deliveryAddress || profile.address || '';
-  const nic = rawUser.nicNumber || rawUser.nic || profile.nicNumber || profile.nic || '';
+  const root = rawUser.user || rawUser.merchant || rawUser;
+  const profile = rawUser.profile || rawUser.customerProfile || root.customerProfile || rawUser.shopProfile || root.shopProfile || rawUser.riderProfile || root.riderProfile || {};
+
+  const profilePic = root.profilePicture || root.profilePhoto || root.avatar || profile.profilePicture || profile.profilePhoto || profile.avatar || rawUser.profilePicture || '';
+  const fullName = root.fullName || root.name || profile.fullName || profile.ownerName || (root.firstName ? `${root.firstName} ${root.lastName || ''}`.trim() : '');
+  const phone = root.phoneNumber || root.phone || root.mobile || profile.phoneNumber || profile.phone || profile.mobile || profile.ownerPhone || '';
+  const city = root.city || profile.city || '';
+  const address = root.address || root.deliveryAddress || profile.deliveryAddress || profile.address || profile.shopAddress || profile.outletAddress || '';
+  const nic = root.nicNumber || root.nic || profile.nicNumber || profile.nic || '';
 
   return {
     ...profile,
-    ...rawUser,
-    id: rawUser.id || profile.id || profile.userId,
-    email: rawUser.email || profile.email || '',
+    ...root,
+    id: root.id || profile.id || profile.userId || rawUser.id,
+    email: root.email || profile.email || profile.ownerEmail || rawUser.email || '',
     fullName: fullName,
     name: fullName,
-    firstName: rawUser.firstName || (fullName ? fullName.split(' ')[0] : ''),
-    lastName: rawUser.lastName || (fullName && fullName.split(' ').length > 1 ? fullName.split(' ').slice(1).join(' ') : ''),
+    firstName: root.firstName || (fullName ? fullName.split(' ')[0] : ''),
+    lastName: root.lastName || (fullName && fullName.split(' ').length > 1 ? fullName.split(' ').slice(1).join(' ') : ''),
     phoneNumber: phone,
     phone: phone,
     mobile: phone,
@@ -95,6 +97,22 @@ function normalizeUser(rawUser: any): UserProfile {
 class AuthService {
   private currentUser: UserProfile = {};
   private token: string | null = null;
+  private registrationDraft: Partial<UserProfile> | null = null;
+
+  getRegistrationDraft(): Partial<UserProfile> {
+    return this.registrationDraft || {};
+  }
+
+  setRegistrationDraft(data: Partial<UserProfile>) {
+    this.registrationDraft = {
+      ...(this.registrationDraft || {}),
+      ...data,
+    };
+  }
+
+  clearRegistrationDraft() {
+    this.registrationDraft = null;
+  }
 
   constructor() {
     this.loadFromStorage();
@@ -109,6 +127,7 @@ class AuthService {
       }
       if (storedToken) {
         this.token = storedToken;
+        apiClient.setToken(storedToken);
       }
     } catch (e) {
       console.warn('[AuthService Storage Load Warning]:', e);
@@ -129,45 +148,23 @@ class AuthService {
   }
 
   async register(payload: RegisterUserPayload): Promise<AuthResponse> {
-    try {
-      const data = await apiClient.post<any>('/auth/register', payload);
-      if (data.accessToken || data.access_token) {
-        this.token = data.accessToken || data.access_token || null;
-      }
-      const rawUser = data.user || data.merchant || data;
-      this.currentUser = normalizeUser(rawUser);
-      await this.saveToStorage();
-      return { user: this.currentUser, accessToken: this.token || 'dev_token', ...data };
-    } catch (err: any) {
-      console.log('[Dev Fallback]: Backend server offline. Saving registration payload locally.');
-      this.currentUser = normalizeUser({
-        ...this.currentUser,
-        email: payload.email,
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        fullName: payload.fullName,
-        phoneNumber: payload.phoneNumber,
-        nicNumber: payload.nicNumber,
-        city: payload.city,
-        profilePicture: payload.profilePicture,
-        address: payload.address,
-        latitude: payload.latitude,
-        longitude: payload.longitude,
-        role: payload.role || 'CUSTOMER',
-      });
-      this.token = 'mock_dev_access_token_12345';
-      await this.saveToStorage();
-      return { user: this.currentUser, accessToken: this.token, message: 'Registered in Dev Mode' };
+    const data = await apiClient.post<any>('/auth/register', payload);
+    if (data.accessToken || data.access_token) {
+      this.token = data.accessToken || data.access_token || null;
+      apiClient.setToken(this.token);
     }
+    this.currentUser = normalizeUser(data);
+    await this.saveToStorage();
+    return { user: this.currentUser, accessToken: this.token || 'dev_token', ...data };
   }
 
   async login(payload: LoginPayload): Promise<AuthResponse> {
     const data = await apiClient.post<any>('/auth/login', payload);
     if (data.accessToken || data.access_token) {
       this.token = data.accessToken || data.access_token || null;
+      apiClient.setToken(this.token);
     }
-    const rawUser = data.user || data.merchant || data;
-    this.currentUser = normalizeUser(rawUser);
+    this.currentUser = normalizeUser(data);
     await this.saveToStorage();
     return { user: this.currentUser, accessToken: this.token || 'dev_token', ...data };
   }

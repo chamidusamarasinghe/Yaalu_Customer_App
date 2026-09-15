@@ -20,22 +20,27 @@ export default function VerifyAccountScreen() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [firebaseEmailCode, setFirebaseEmailCode] = useState<string>('');
 
-  const currentUser = authService.getUser();
-  const rawPhone = currentUser?.phoneNumber || '771234567';
-  const userEmail = currentUser?.email || 'user@example.com';
+  const draft = authService.getRegistrationDraft();
+  const rawPhone = draft.phoneNumber || '';
+  const userEmail = draft.email || '';
 
   // Format to E.164 (+94XXXXXXXXX)
   let cleanPhone = rawPhone.replace(/[^0-9]/g, '');
   if (cleanPhone.startsWith('0')) {
     cleanPhone = cleanPhone.substring(1);
   }
-  const formattedPhone = cleanPhone.startsWith('94') ? `+${cleanPhone}` : `+94${cleanPhone}`;
+  const formattedPhone = cleanPhone ? (cleanPhone.startsWith('94') ? `+${cleanPhone}` : `+94${cleanPhone}`) : '';
 
   // 1. Send Verification Code (Phone via Backend OTP | Email via Firebase)
   const handleSendOtp = async () => {
     setIsSending(true);
 
     if (verifyMethod === 'phone') {
+      if (!formattedPhone) {
+        Alert.alert('Missing Details ⚠️', 'Phone number not found. Please go back to Step 1 and enter your phone number.');
+        setIsSending(false);
+        return;
+      }
       // PHONE AUTHENTICATION: Use NestJS Backend Random Development OTP Code
       try {
         const res = await authService.sendOtp({ phoneNumber: formattedPhone });
@@ -52,6 +57,11 @@ export default function VerifyAccountScreen() {
         setIsSending(false);
       }
     } else {
+      if (!userEmail || !userEmail.includes('@')) {
+        Alert.alert('Missing Details ⚠️', 'Email address not found. Please go back to Step 2 and enter your email address.');
+        setIsSending(false);
+        return;
+      }
       // EMAIL VERIFICATION: Use Firebase Email Authentication Service
       try {
         console.log('[Firebase Email Auth] Sending verification email to:', userEmail);
@@ -117,10 +127,9 @@ export default function VerifyAccountScreen() {
         `${verifyMethod === 'phone' ? 'Phone number' : 'Email address'} verified successfully.`
       );
 
-      authService.setCurrentUser({
-        ...authService.getUser(),
-        isPhoneVerified: verifyMethod === 'phone' || authService.getUser().isPhoneVerified,
-        isEmailVerified: verifyMethod === 'email' || authService.getUser().isEmailVerified,
+      authService.setRegistrationDraft({
+        isPhoneVerified: verifyMethod === 'phone' || draft.isPhoneVerified,
+        isEmailVerified: verifyMethod === 'email' || draft.isEmailVerified,
       });
 
       // Verification Page -> Password Creation Page
