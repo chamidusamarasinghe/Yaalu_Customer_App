@@ -72,7 +72,11 @@ export default function VerifyAccountScreen() {
 
         // Attempt Firebase Password Reset / Verification Email Dispatch
         try {
-          await sendPasswordResetEmail(auth, userEmail);
+          if (auth.app.options.apiKey && auth.app.options.apiKey !== 'dummy_api_key_for_dev_mode') {
+            await sendPasswordResetEmail(auth, userEmail);
+          } else {
+            console.warn('[Firebase Email Info]: Valid API Key missing, skipping real email send.');
+          }
         } catch (firebaseErr: any) {
           console.warn('[Firebase Email Info]:', firebaseErr.message);
         }

@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const LOCAL_WIFI_IP = '192.168.8.166';
+const LOCAL_WIFI_IP = '192.168.1.46';
 
 const isVirtualAdapterIp = (ip: string): boolean => {
   if (!ip || ip === 'localhost' || ip === '127.0.0.1') return true;
@@ -18,10 +18,10 @@ const getBaseUrl = () => {
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip && !isVirtualAdapterIp(ip)) {
-      return 'http://' + ip + ':3000';
+      return 'http://' + ip + ':3001';
     }
   }
-  return 'http://' + LOCAL_WIFI_IP + ':3000';
+  return 'http://' + LOCAL_WIFI_IP + ':3001';
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -46,33 +46,28 @@ class ApiClient {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
     const urls: string[] = [];
 
-    // 1. Explicit environment variable if set
     if (process.env.EXPO_PUBLIC_API_URL) {
       urls.push(process.env.EXPO_PUBLIC_API_URL + cleanEndpoint);
     }
 
-    // 2. Android Emulator special bridge to host port 3000
     if (Platform.OS === 'android') {
-      urls.push('http://10.0.2.2:3000' + cleanEndpoint);
+      urls.push('http://10.0.2.2:3001' + cleanEndpoint);
     }
 
-    // 3. Expo Host IP (Physical device over Wi-Fi)
     const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
     if (hostUri) {
       const ip = hostUri.split(':')[0];
       if (ip && !isVirtualAdapterIp(ip)) {
-        urls.push('http://' + ip + ':3000' + cleanEndpoint);
+        urls.push('http://' + ip + ':3001' + cleanEndpoint);
       }
     }
 
-    // 4. Fallback Wi-Fi IP
     if (LOCAL_WIFI_IP) {
-      urls.push('http://' + LOCAL_WIFI_IP + ':3000' + cleanEndpoint);
+      urls.push('http://' + LOCAL_WIFI_IP + ':3001' + cleanEndpoint);
     }
 
-    // 5. Localhost fallbacks for Web/Desktop
-    urls.push('http://localhost:3000' + cleanEndpoint);
-    urls.push('http://127.0.0.1:3000' + cleanEndpoint);
+    urls.push('http://localhost:3001' + cleanEndpoint);
+    urls.push('http://127.0.0.1:3001' + cleanEndpoint);
 
     return Array.from(new Set(urls));
   }

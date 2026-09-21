@@ -122,6 +122,8 @@ class ProductService {
       let endpoint = '/products?activeOnly=true';
       if (params?.merchantId) {
         endpoint += `&merchantId=${encodeURIComponent(params.merchantId)}`;
+      } else {
+        endpoint += '&global=true';
       }
       const products = await apiClient.get<ProductItem[]>(endpoint);
       if (products && products.length > 0) {
