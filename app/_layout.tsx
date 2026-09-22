@@ -13,7 +13,7 @@ LogBox.ignoreLogs([
 ]);
 
 // Top-level error suppression for Chrome Extensions crashing Expo Web
-if (typeof window !== 'undefined') {
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
   const originalOnError = window.onerror;
   window.onerror = function (message, source, lineno, colno, error) {
     if (message?.toString().includes('M_ID') || source?.toString().includes('chrome-extension')) {
@@ -24,11 +24,13 @@ if (typeof window !== 'undefined') {
     }
     return false;
   };
-  window.addEventListener('unhandledrejection', function (event) {
-    if (event.reason?.toString().includes('M_ID')) {
-      event.preventDefault();
-    }
-  });
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('unhandledrejection', function (event: any) {
+      if (event.reason?.toString().includes('M_ID')) {
+        event.preventDefault();
+      }
+    });
+  }
 }
 
 export default function RootLayout() {
