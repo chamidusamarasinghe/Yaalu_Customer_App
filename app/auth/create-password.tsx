@@ -59,7 +59,7 @@ export default function CreatePasswordScreen() {
     const draft = authService.getRegistrationDraft();
     if (!draft.email) {
       Alert.alert('Registration Error', 'Missing registration details. Please restart registration.');
-      router.push('/register/step1');
+      // DO NOT automatically redirect here, as it causes race conditions on double-click.
       return;
     }
 
@@ -88,12 +88,10 @@ export default function CreatePasswordScreen() {
       });
 
       authService.clearRegistrationDraft();
+      
+      // Navigate to Home automatically
+      router.replace('/(tabs)');
 
-      Alert.alert(
-        'Registration Successful 🎉',
-        'Your account has been created! Welcome to Yaalu.',
-        [{ text: 'Go to Home', onPress: () => router.push('/(tabs)') }]
-      );
     } catch (error: any) {
       Alert.alert('Registration Failed', error.message || 'Unable to register user account.');
     } finally {

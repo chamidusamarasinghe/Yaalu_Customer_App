@@ -44,12 +44,12 @@ class ShopService {
       if (products && products.length > 0) {
         return products;
       }
-      const allProducts = await apiClient.get<any[]>('/products');
+      const allProducts = await apiClient.get<any[]>('/products?global=true');
       return allProducts || [];
     } catch (error) {
       console.warn(`[ShopService Error getShopProducts ${shopId}]:`, error);
       try {
-        const allProducts = await apiClient.get<any[]>('/products');
+        const allProducts = await apiClient.get<any[]>('/products?global=true');
         return allProducts || [];
       } catch (e) {
         return [];
