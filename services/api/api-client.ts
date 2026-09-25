@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const LOCAL_WIFI_IP = '192.168.1.46';
+const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT || '3001';
 
 const isVirtualAdapterIp = (ip: string): boolean => {
   if (!ip || ip === 'localhost' || ip === '127.0.0.1') return true;
@@ -10,18 +10,26 @@ const isVirtualAdapterIp = (ip: string): boolean => {
   return false;
 };
 
-const getBaseUrl = () => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
+const getMetroHostIp = (): string | null => {
   const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip && !isVirtualAdapterIp(ip)) {
-      return 'http://' + ip + ':3001';
+      return ip;
     }
   }
-  return 'http://' + LOCAL_WIFI_IP + ':3001';
+  return null;
+};
+
+const getBaseUrl = () => {
+  const metroIp = getMetroHostIp();
+  if (metroIp) {
+    return 'http://' + metroIp + ':' + DEFAULT_API_PORT;
+  }
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+  return 'http://localhost:' + DEFAULT_API_PORT;
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -46,28 +54,28 @@ class ApiClient {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
     const urls: string[] = [];
 
-    if (process.env.EXPO_PUBLIC_API_URL) {
-      urls.push(process.env.EXPO_PUBLIC_API_URL + cleanEndpoint);
+    // 1. Auto-detected Metro Host IP (Active Wi-Fi on physical device via Expo Go)
+    const metroIp = getMetroHostIp();
+    if (metroIp) {
+      urls.push('http://' + metroIp + ':' + DEFAULT_API_PORT + cleanEndpoint);
     }
 
+    // 2. Android Emulator special bridge (Works on any Wi-Fi / network)
     if (Platform.OS === 'android') {
-      urls.push('http://10.0.2.2:3001' + cleanEndpoint);
+      urls.push('http://10.0.2.2:' + DEFAULT_API_PORT + cleanEndpoint);
     }
 
-    const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
-    if (hostUri) {
-      const ip = hostUri.split(':')[0];
-      if (ip && !isVirtualAdapterIp(ip)) {
-        urls.push('http://' + ip + ':3001' + cleanEndpoint);
-      }
+    // 3. Explicit environment variable if set (Production domain or fixed server)
+    if (process.env.EXPO_PUBLIC_API_URL) {
+      const cleanEnvUrl = process.env.EXPO_PUBLIC_API_URL.endsWith('/')
+        ? process.env.EXPO_PUBLIC_API_URL.slice(0, -1)
+        : process.env.EXPO_PUBLIC_API_URL;
+      urls.push(cleanEnvUrl + cleanEndpoint);
     }
 
-    if (LOCAL_WIFI_IP) {
-      urls.push('http://' + LOCAL_WIFI_IP + ':3001' + cleanEndpoint);
-    }
-
-    urls.push('http://localhost:3001' + cleanEndpoint);
-    urls.push('http://127.0.0.1:3001' + cleanEndpoint);
+    // 4. Localhost fallbacks for Web / Desktop / Simulator
+    urls.push('http://localhost:' + DEFAULT_API_PORT + cleanEndpoint);
+    urls.push('http://127.0.0.1:' + DEFAULT_API_PORT + cleanEndpoint);
 
     return Array.from(new Set(urls));
   }
