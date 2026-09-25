@@ -15,6 +15,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { productService, ProductItem } from '../../services/api/product-service';
+import { shopService, ShopItem } from '../../services/api/shop-service';
 import { cartService } from '../../services/api/cart-service';
 
 export default function ProductDetailsScreen() {
@@ -22,6 +23,7 @@ export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams();
 
   const [product, setProduct] = useState<ProductItem | null>(null);
+  const [shop, setShop] = useState<ShopItem | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [quantity, setQuantity] = useState<number>(1);
   const [showAddedModal, setShowAddedModal] = useState<boolean>(false);
@@ -37,6 +39,16 @@ export default function ProductDetailsScreen() {
     try {
       const fetched = await productService.getProductById(prodId);
       setProduct(fetched);
+
+      // Fetch the shop that listed this product
+      if (fetched?.merchantId) {
+        try {
+          const fetchedShop = await shopService.getShopById(fetched.merchantId);
+          setShop(fetchedShop);
+        } catch (shopErr) {
+          console.warn('[ProductDetailsScreen] Could not load shop:', shopErr);
+        }
+      }
     } catch (err) {
       console.warn('[ProductDetailsScreen Error]:', err);
     } finally {
@@ -112,6 +124,38 @@ export default function ProductDetailsScreen() {
             <Text style={styles.productDescription}>
               {product.description || 'Fresh quality produce sourced from verified local vendors.'}
             </Text>
+
+            {/* Sold by Shop Info Card */}
+            {shop && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.shopInfoCard}
+                onPress={() => router.push(`/store/${shop.id}` as any)}
+              >
+                <View style={styles.shopInfoLeft}>
+                  <View style={styles.shopInfoIconBox}>
+                    {shop.shopImage ? (
+                      <Image source={{ uri: shop.shopImage }} style={styles.shopInfoImage} resizeMode="cover" />
+                    ) : (
+                      <Ionicons name="storefront" size={22} color="#0036AA" />
+                    )}
+                  </View>
+                  <View style={styles.shopInfoTextCol}>
+                    <Text style={styles.shopInfoName} numberOfLines={1}>{shop.shopName}</Text>
+                    {shop.businessType ? (
+                      <Text style={styles.shopInfoType} numberOfLines={1}>{shop.businessType}</Text>
+                    ) : null}
+                    <Text style={styles.shopInfoAddress} numberOfLines={1}>
+                      {shop.shopAddress || shop.outletAddress || 'Sri Lanka'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.shopInfoRight}>
+                  <Text style={styles.shopInfoViewText}>View Shop</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#0036AA" />
+                </View>
+              </TouchableOpacity>
+            )}
 
             {/* Quantity Counter */}
             <View style={styles.counterCard}>
@@ -287,6 +331,66 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#166534',
+  },
+  shopInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0F7FF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  shopInfoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  shopInfoIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  shopInfoImage: {
+    width: 44,
+    height: 44,
+  },
+  shopInfoTextCol: {
+    flex: 1,
+  },
+  shopInfoName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  shopInfoType: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB',
+    marginTop: 1,
+  },
+  shopInfoAddress: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  shopInfoRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  shopInfoViewText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0036AA',
+    marginRight: 4,
   },
   productDescription: {
     fontSize: 14,
