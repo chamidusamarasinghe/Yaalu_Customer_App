@@ -9,6 +9,7 @@ export interface MapMarker {
   title: string;
   type?: 'pickup' | 'drop' | 'driver' | 'vehicle' | string;
   vehicleType?: string;
+  blinking?: boolean;
 }
 
 interface InteractiveMapProps {
@@ -67,6 +68,10 @@ export default function InteractiveMap({
         @keyframes pulse-ring {
           0% { transform: scale(0.6); opacity: 1; }
           100% { transform: scale(1.6); opacity: 0; }
+        }
+        @keyframes blink-pulse {
+          0%, 100% { opacity: 1; filter: brightness(1); }
+          50% { opacity: 0.45; filter: brightness(1.4); }
         }
         .custom-pin-pickup {
           background: linear-gradient(135deg, #0B1044 0%, #1E293B 100%);
@@ -169,6 +174,9 @@ export default function InteractiveMap({
 
           if (pinType === 'vehicle' || m.vehicleType) {
             var vehInfo = getVehicleIconAndColor(m.vehicleType || pinType);
+            var isBlinking = m.blinking !== false; // Blink by default for active searching vehicle icons
+            var animStyle = isBlinking ? 'animation: blink-pulse 1.2s infinite ease-in-out;' : '';
+
             var wrapper = document.createElement('div');
             wrapper.style.position = 'relative';
             wrapper.style.display = 'flex';
@@ -178,9 +186,9 @@ export default function InteractiveMap({
 
             wrapper.innerHTML = \`
               <div style="position: absolute; width: 44px; height: 44px; border-radius: 50%; background: \${vehInfo.color}3D; border: 2.5px solid \${vehInfo.color}; animation: pulse-ring 2s infinite ease-out; bottom: -8px; z-index: 1;"></div>
-              <div style="display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, \${vehInfo.bg} 0%, #1E293B 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 800; box-shadow: 0 6px 16px rgba(0,0,0,0.4); border: 2.5px solid \${vehInfo.color}; white-space: nowrap; z-index: 2;">
+              <div style="display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, \${vehInfo.bg} 0%, #1E293B 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 800; box-shadow: 0 6px 16px rgba(0,0,0,0.4); border: 2.5px solid \${vehInfo.color}; white-space: nowrap; z-index: 2; \${animStyle}">
                 <span style="font-size: 18px; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">\${vehInfo.icon}</span>
-                <span>\${m.title || vehInfo.name}</span>
+                \${m.title ? '<span>' + m.title + '</span>' : ''}
               </div>
               <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid \${vehInfo.color}; margin-top: -1px; z-index: 2;"></div>
             \`;
@@ -194,6 +202,7 @@ export default function InteractiveMap({
             el.className = className;
             el.innerHTML = labelHtml;
           }
+
 
           var coord = ol.proj.fromLonLat([m.longitude, m.latitude]);
           olCoords.push(coord);

@@ -273,11 +273,8 @@ export default function SelectVehicleScreen() {
       driverNote,
     };
 
-    if (mode === 'bidding') {
-      router.push({ pathname: '/rides/bidding-timer' as any, params: routeParams });
-    } else {
-      router.push({ pathname: '/rides/confirm-pickup' as any, params: routeParams });
-    }
+    // Always route directly to searching waiting screen with blinking vehicle markers
+    router.push({ pathname: '/rides/bidding-timer' as any, params: routeParams });
   };
 
   // State for live nearby available riders based on requirement

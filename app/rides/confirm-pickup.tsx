@@ -49,10 +49,11 @@ export default function ConfirmPickupScreen() {
         tripCategory: (tripCategory as any) || 'ONE_WAY',
       });
       router.push({
-        pathname: '/rides/verify-start' as any,
+        pathname: '/rides/bidding-timer' as any,
         params: {
           rideRequestId: record.id,
           tripCategory: tripCategory || 'ONE_WAY',
+          vehicleType: vehicleType || 'THREE_WHEEL',
           pickup: record.pickupAddress,
           dropoff: record.dropoffAddress,
           fare: record.fareAmount ? record.fareAmount.toString() : (record.finalFare ? record.finalFare.toString() : undefined),
@@ -66,9 +67,10 @@ export default function ConfirmPickupScreen() {
     } catch (e: any) {
       console.warn('[ConfirmPickup rideService createRideRequest Notice]:', e?.message || e);
       router.push({
-        pathname: '/rides/verify-start' as any,
+        pathname: '/rides/bidding-timer' as any,
         params: {
           tripCategory: tripCategory || 'ONE_WAY',
+          vehicleType: vehicleType || 'THREE_WHEEL',
           pickup,
           dropoff,
           pickupLat: String(pickupCoords.latitude),
