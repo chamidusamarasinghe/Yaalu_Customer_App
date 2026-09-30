@@ -34,13 +34,31 @@ export default function VerifyStartCodeScreen() {
     startPin?: string;
   }>();
 
-  const otpCode = (startPin || '4200').slice(0, 4);
+  const [rideDetails, setRideDetails] = useState<any>(null);
+
+  React.useEffect(() => {
+    if (rideRequestId) {
+      rideService.getRideDetails(rideRequestId).then((details) => {
+        if (details) setRideDetails(details);
+      }).catch(() => {});
+    }
+  }, [rideRequestId]);
+
+  const driverInfo = rideDetails?.acceptedDriver || {
+    fullName: 'Driver Partner',
+    phoneNumber: '',
+    vehicleModel: '',
+    vehicleNumber: '',
+    rating: 5.0,
+    profilePhotoUrl: '',
+  };
+
+  const otpCode = (startPin || rideDetails?.startPin || '').slice(0, 4);
   const [pin, setPin] = useState<string[]>(['', '', '', '']);
   const [chatModalVisible, setChatModalVisible] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'driver'; text: string; time: string }>>([
-    { sender: 'driver', text: 'Hello! I am on my way to your pickup location.', time: '10:14 AM' },
-  ]);
+  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'driver'; text: string; time: string }>>([]);
+
 
   const handlePinDigitChange = (text: string, index: number) => {
     const newPin = [...pin];
@@ -49,10 +67,12 @@ export default function VerifyStartCodeScreen() {
   };
 
   const handleCallDriver = () => {
-    Linking.openURL('tel:+94771234567').catch(() => {
-      Alert.alert('Call Driver', 'Calling Driver Ravi K. (+94 77 123 4567)');
+    const phone = driverInfo.phoneNumber || '+94771234567';
+    Linking.openURL(`tel:${phone}`).catch(() => {
+      Alert.alert('Call Driver', `Calling ${driverInfo.fullName} (${phone})`);
     });
   };
+
 
   const handleShareStatus = async () => {
     try {
@@ -182,11 +202,12 @@ export default function VerifyStartCodeScreen() {
 
         {/* Driver Arrival Notice */}
         <View style={styles.noticeContainer}>
-          <Text style={styles.noticeMainTitle}>Driver is Here!</Text>
+          <Text style={styles.noticeMainTitle}>Driver Confirmed & Arrived!</Text>
           <Text style={styles.noticeSubText}>
-            Please find Ravi K. and his white Toyota Axio (WP-AB-1234).
+            Please find {driverInfo.fullName} and his {driverInfo.vehicleModel} ({driverInfo.vehicleNumber}).
           </Text>
         </View>
+
 
         {/* Verification Code Box */}
         <View style={styles.verifyCard}>

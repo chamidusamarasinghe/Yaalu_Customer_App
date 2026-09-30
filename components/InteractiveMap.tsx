@@ -7,7 +7,8 @@ export interface MapMarker {
   latitude: number;
   longitude: number;
   title: string;
-  type?: 'pickup' | 'drop' | 'driver';
+  type?: 'pickup' | 'drop' | 'driver' | 'vehicle' | string;
+  vehicleType?: string;
 }
 
 interface InteractiveMapProps {
@@ -63,34 +64,38 @@ export default function InteractiveMap({
           font-weight: bold;
           border-radius: 8px !important;
         }
+        @keyframes pulse-ring {
+          0% { transform: scale(0.6); opacity: 1; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
         .custom-pin-pickup {
-          background-color: #0B1044;
+          background: linear-gradient(135deg, #0B1044 0%, #1E293B 100%);
           color: #FFC72C;
-          padding: 6px 12px;
+          padding: 6px 14px;
           border-radius: 16px;
           font-size: 12px;
           font-weight: 800;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.35);
           border: 2px solid #FFC72C;
           white-space: nowrap;
           text-align: center;
           transform: translate(-50%, -50%);
         }
         .custom-pin-drop {
-          background-color: #E11D48;
+          background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%);
           color: white;
-          padding: 6px 12px;
+          padding: 6px 14px;
           border-radius: 16px;
           font-size: 12px;
           font-weight: 800;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.35);
           border: 2px solid white;
           white-space: nowrap;
           text-align: center;
           transform: translate(-50%, -50%);
         }
         .custom-pin-driver {
-          background-color: #FFC72C;
+          background: linear-gradient(135deg, #FDB813 0%, #D97706 100%);
           color: #0B1044;
           padding: 6px 14px;
           border-radius: 20px;
@@ -135,17 +140,60 @@ export default function InteractiveMap({
           }
         }
 
+        function getVehicleIconAndColor(vType) {
+          var clean = (vType || '').toString().trim().toLowerCase();
+          if (clean === 'bike' || clean === 'motorbike' || clean === 'courier') {
+            return { icon: '🏍️', color: '#FDB813', bg: '#061138', name: 'Bike' };
+          }
+          if (clean === 'flex' || clean === 'three_wheel' || clean === 'tuk' || clean === 'tuktuk' || clean === 'threewheel') {
+            return { icon: '🛺', color: '#10B981', bg: '#061138', name: 'Tuk-Tuk' };
+          }
+          if (clean === 'mini' || clean === 'car' || clean === 'taxi' || clean === 'normal_car' || clean === 'cab' || clean === 'sedan') {
+            return { icon: '🚗', color: '#3B82F6', bg: '#061138', name: 'Car' };
+          }
+          if (clean === 'luxury' || clean === 'luxury_car' || clean === 'premium' || clean === 'lux') {
+            return { icon: '🚘', color: '#F59E0B', bg: '#0F172A', name: 'Luxury' };
+          }
+          if (clean === 'van' || clean === 'cargo' || clean === 'large') {
+            return { icon: '🚐', color: '#8B5CF6', bg: '#061138', name: 'Van' };
+          }
+          return { icon: '🚗', color: '#FDB813', bg: '#061138', name: 'Rider' };
+        }
+
         var markersData = ${JSON.stringify(validMarkers)};
         var olCoords = [];
 
         markersData.forEach(function(m) {
           var pinType = m.type || 'pickup';
-          var className = pinType === 'drop' ? 'custom-pin-drop' : (pinType === 'driver' ? 'custom-pin-driver' : 'custom-pin-pickup');
-          var labelHtml = (pinType === 'driver' ? '🛵 ' : (pinType === 'drop' ? '🎯 ' : '🏬 ')) + (m.title || 'Location');
+          var el;
 
-          var el = document.createElement('div');
-          el.className = className;
-          el.innerHTML = labelHtml;
+          if (pinType === 'vehicle' || m.vehicleType) {
+            var vehInfo = getVehicleIconAndColor(m.vehicleType || pinType);
+            var wrapper = document.createElement('div');
+            wrapper.style.position = 'relative';
+            wrapper.style.display = 'flex';
+            wrapper.style.flexDirection = 'column';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.transform = 'translate(-50%, -100%)';
+
+            wrapper.innerHTML = \`
+              <div style="position: absolute; width: 44px; height: 44px; border-radius: 50%; background: \${vehInfo.color}3D; border: 2.5px solid \${vehInfo.color}; animation: pulse-ring 2s infinite ease-out; bottom: -8px; z-index: 1;"></div>
+              <div style="display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, \${vehInfo.bg} 0%, #1E293B 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 800; box-shadow: 0 6px 16px rgba(0,0,0,0.4); border: 2.5px solid \${vehInfo.color}; white-space: nowrap; z-index: 2;">
+                <span style="font-size: 18px; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">\${vehInfo.icon}</span>
+                <span>\${m.title || vehInfo.name}</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid \${vehInfo.color}; margin-top: -1px; z-index: 2;"></div>
+            \`;
+
+            el = wrapper;
+          } else {
+            var className = pinType === 'drop' ? 'custom-pin-drop' : (pinType === 'driver' ? 'custom-pin-driver' : 'custom-pin-pickup');
+            var labelHtml = (pinType === 'driver' ? '🛵 ' : (pinType === 'drop' ? '🎯 ' : '🏬 ')) + (m.title || 'Location');
+
+            el = document.createElement('div');
+            el.className = className;
+            el.innerHTML = labelHtml;
+          }
 
           var coord = ol.proj.fromLonLat([m.longitude, m.latitude]);
           olCoords.push(coord);
@@ -158,6 +206,7 @@ export default function InteractiveMap({
           });
           map.addOverlay(overlay);
         });
+
 
         if (${showRoute} && olCoords.length >= 2) {
           var routeFeature = new ol.Feature({

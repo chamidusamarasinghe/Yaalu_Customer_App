@@ -55,12 +55,14 @@ export default function BiddingConfirmScreen() {
     });
   };
 
-  const pickupText = rideDetails?.pickupAddress || pickup || 'Selected Pickup';
-  const dropoffText = rideDetails?.dropoffAddress || dropoff || 'Selected Dropoff';
-  const displayFare = selectedBid ? `LKR ${Number(selectedBid.proposedFare).toFixed(2)}` : (rideDetails?.finalFare ? `LKR ${Number(rideDetails.finalFare).toFixed(2)}` : 'LKR 710.07');
-  const driverName = selectedBid?.driverName || 'Ravi S.';
-  const vehicleModel = selectedBid?.vehicleModel || 'Toyota Prius - White';
-  const vehicleNumber = selectedBid?.vehicleNumber || 'WP CAH-1234';
+  const pickupText = rideDetails?.pickupAddress || pickup || '';
+  const dropoffText = rideDetails?.dropoffAddress || dropoff || '';
+  const displayFare = selectedBid ? `LKR ${Number(selectedBid.proposedFare).toFixed(2)}` : (rideDetails?.finalFare ? `LKR ${Number(rideDetails.finalFare).toFixed(2)}` : '');
+  const driverName = selectedBid?.driverName || rideDetails?.acceptedDriver?.fullName || 'Rider';
+  const vehicleModel = selectedBid?.vehicleModel || rideDetails?.acceptedDriver?.vehicleModel || '';
+  const vehicleNumber = selectedBid?.vehicleNumber || rideDetails?.acceptedDriver?.vehicleNumber || '';
+  const driverRating = selectedBid?.rating || rideDetails?.acceptedDriver?.rating || 5.0;
+  const driverPhoto = selectedBid?.profilePhotoUrl || rideDetails?.acceptedDriver?.profilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80';
 
   const mapMarkers: any[] = [];
   if (rideDetails?.pickupLat && rideDetails?.pickupLng) {
@@ -113,7 +115,7 @@ export default function BiddingConfirmScreen() {
         <View style={styles.driverCard}>
           <View style={styles.driverTopRow}>
             <Image
-              source={{ uri: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80" }}
+              source={{ uri: driverPhoto }}
               style={styles.driverAvatar}
             />
             <View style={styles.driverInfoCol}>
@@ -121,13 +123,14 @@ export default function BiddingConfirmScreen() {
                 <Text style={styles.driverName}>{driverName}</Text>
                 <View style={styles.ratingBadge}>
                   <Ionicons name="star" size={13} color="#F59E0B" />
-                  <Text style={styles.ratingText}>5.0 (124)</Text>
+                  <Text style={styles.ratingText}>{Number(driverRating).toFixed(1)}</Text>
                 </View>
               </View>
-              <Text style={styles.vehicleModelText}>{vehicleModel}</Text>
-              <Text style={styles.vehicleRegText}>{vehicleNumber}</Text>
+              {vehicleModel ? <Text style={styles.vehicleModelText}>{vehicleModel}</Text> : null}
+              {vehicleNumber ? <Text style={styles.vehicleRegText}>{vehicleNumber}</Text> : null}
             </View>
           </View>
+
 
           <View style={styles.divider} />
 

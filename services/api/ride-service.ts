@@ -70,6 +70,25 @@ export interface CalculatedFareResponse {
   bidTimeoutSeconds: number;
 }
 
+export interface NearbyRiderItem {
+  id: string;
+  userId: string;
+  fullName: string;
+  phoneNumber: string;
+  profilePhotoUrl: string;
+  vehicleType: string;
+  normalizedVehicleType: string;
+  vehicleModel: string;
+  vehicleNumber: string;
+  rating: number;
+  deliveriesCompleted: number;
+  currentLatitude: number;
+  currentLongitude: number;
+  distanceKm: number;
+  etaMinutes: number;
+  etaText: string;
+}
+
 export const rideService = {
   async getFareRates(): Promise<any[]> {
     return await apiClient.get('/deliveries/fare-rates');
@@ -77,6 +96,15 @@ export const rideService = {
 
   async calculateFare(distanceKm: number, vehicleType?: string): Promise<CalculatedFareResponse> {
     return await apiClient.post<CalculatedFareResponse>('/deliveries/calculate-fare', { distanceKm, vehicleType });
+  },
+
+  async getNearbyRiders(params: { pickupLat?: number; pickupLng?: number; vehicleType?: string; radiusKm?: number }): Promise<NearbyRiderItem[]> {
+    const query = new URLSearchParams();
+    if (params.pickupLat !== undefined) query.append('pickupLat', String(params.pickupLat));
+    if (params.pickupLng !== undefined) query.append('pickupLng', String(params.pickupLng));
+    if (params.vehicleType) query.append('vehicleType', params.vehicleType);
+    if (params.radiusKm !== undefined) query.append('radiusKm', String(params.radiusKm));
+    return await apiClient.get<NearbyRiderItem[]>(`/deliveries/nearby-riders?${query.toString()}`);
   },
 
   async createRideRequest(payload: CreateRidePayload): Promise<RideRequestRecord> {
@@ -117,3 +145,4 @@ export const rideService = {
     return res;
   },
 };
+
