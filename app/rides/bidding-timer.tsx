@@ -41,6 +41,23 @@ export default function BiddingTimerScreen() {
   const dLatNum = params.dropoffLat ? parseFloat(params.dropoffLat) : 6.8413;
   const dLngNum = params.dropoffLng ? parseFloat(params.dropoffLng) : 79.9654;
 
+  // Calculate real trip distance in kilometers
+  const calculateDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Earth radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c * 10) / 10;
+  };
+
+  const tripDistanceKm = calculateDistanceKm(pLatNum, pLngNum, dLatNum, dLngNum);
+
   // 1. Create or fetch ride request
   useEffect(() => {
     if (params.rideRequestId) {
@@ -139,6 +156,11 @@ export default function BiddingTimerScreen() {
         dropoff: details?.dropoffAddress || params.dropoff,
         fare: details?.finalFare ? String(details.finalFare) : params.fare,
         startPin: details?.startPin || '4200',
+        pickupLat: String(pLatNum),
+        pickupLng: String(pLngNum),
+        dropoffLat: String(dLatNum),
+        dropoffLng: String(dLngNum),
+        vehicleType: params.vehicleType || 'THREE_WHEEL',
       },
     });
   };
@@ -164,7 +186,7 @@ export default function BiddingTimerScreen() {
     return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Build dynamic markers with blinking 3D vehicle icons
+  // Build dynamic markers with pickup, dropoff, and blinking 3D vehicle icons
   const mapMarkers: any[] = [
     {
       id: 'pickup_spot',
@@ -172,6 +194,13 @@ export default function BiddingTimerScreen() {
       longitude: pLngNum,
       title: params.pickup || 'Pickup Location',
       type: 'pickup',
+    },
+    {
+      id: 'dropoff_spot',
+      latitude: dLatNum,
+      longitude: dLngNum,
+      title: params.dropoff || 'Dropoff Location',
+      type: 'drop',
     },
     ...nearbyRiders.map((r, i) => ({
       id: `searching_rider_${r.id}_${i}`,
@@ -206,21 +235,30 @@ export default function BiddingTimerScreen() {
         <InteractiveMap
           height="100%"
           center={{ latitude: pLatNum, longitude: pLngNum }}
-          zoom={14}
+          zoom={13}
           markers={mapMarkers}
+          showRoute={true}
         />
       </View>
 
       {/* Bottom Floating Searching Control Panel */}
       <View style={styles.bottomSearchingPanel}>
-        <View style={styles.timerBadge}>
-          <Ionicons name="time-outline" size={22} color="#D97706" style={{ marginRight: 6 }} />
-          <Text style={styles.timerText}>{formatTimer(secondsLeft)}</Text>
+        <View style={styles.topInfoRow}>
+          <View style={styles.timerBadge}>
+            <Ionicons name="time-outline" size={20} color="#D97706" style={{ marginRight: 6 }} />
+            <Text style={styles.timerText}>{formatTimer(secondsLeft)}</Text>
+          </View>
+
+          {/* Distance Badge Pill */}
+          <View style={styles.distanceBadge}>
+            <Ionicons name="navigate-circle" size={18} color="#2563EB" style={{ marginRight: 4 }} />
+            <Text style={styles.distanceBadgeText}>{tripDistanceKm} km</Text>
+          </View>
         </View>
 
         <Text style={styles.statusTitle}>Notifying Nearby Drivers...</Text>
         <Text style={styles.statusSubtext}>
-          Blinking vehicle icons show active riders near your pickup spot. Please wait while a driver accepts your request.
+          Blinking vehicle icons show active riders near your pickup. Route distance is {tripDistanceKm} km.
         </Text>
 
         <TouchableOpacity
@@ -307,6 +345,12 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
+  topInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 10,
+  },
   timerBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -314,15 +358,29 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#FDE68A",
     borderRadius: 20,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 6,
-    marginBottom: 10,
   },
   timerText: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "900",
     color: "#D97706",
     letterSpacing: 1,
+  },
+  distanceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  distanceBadgeText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#2563EB",
   },
   statusTitle: {
     fontSize: 18,
