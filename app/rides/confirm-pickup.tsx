@@ -44,18 +44,19 @@ export default function ConfirmPickupScreen() {
         pickupLng: pickupCoords.longitude,
         dropoffLat: dropoffLat ? parseFloat(dropoffLat) : undefined,
         dropoffLng: dropoffLng ? parseFloat(dropoffLng) : undefined,
-        rideType: 'STANDARD',
+        rideType: mode === 'bidding' ? 'BIDDING' : 'STANDARD',
         selectedVehicleType: vehicleType || 'bike',
         tripCategory: (tripCategory as any) || 'ONE_WAY',
       });
       router.push({
-        pathname: '/rides/verify-start' as any,
+        pathname: '/rides/bidding-timer' as any,
         params: {
           rideRequestId: record.id,
           tripCategory: tripCategory || 'ONE_WAY',
+          vehicleType: vehicleType || 'THREE_WHEEL',
           pickup: record.pickupAddress,
           dropoff: record.dropoffAddress,
-          fare: record.fareAmount ? record.fareAmount.toString() : undefined,
+          fare: record.fareAmount ? record.fareAmount.toString() : (record.finalFare ? record.finalFare.toString() : undefined),
           pickupLat: String(pickupCoords.latitude),
           pickupLng: String(pickupCoords.longitude),
           dropoffLat: dropoffLat ? String(dropoffLat) : undefined,
@@ -63,15 +64,17 @@ export default function ConfirmPickupScreen() {
           startPin: record.startPin || '4200',
         }
       });
-    } catch (e) {
+    } catch (e: any) {
+      console.warn('[ConfirmPickup rideService createRideRequest Notice]:', e?.message || e);
       router.push({
-        pathname: '/rides/verify-start' as any,
+        pathname: '/rides/bidding-timer' as any,
         params: {
           tripCategory: tripCategory || 'ONE_WAY',
+          vehicleType: vehicleType || 'THREE_WHEEL',
           pickup,
           dropoff,
-          pickupLat,
-          pickupLng,
+          pickupLat: String(pickupCoords.latitude),
+          pickupLng: String(pickupCoords.longitude),
           dropoffLat,
           dropoffLng,
         }

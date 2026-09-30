@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -32,18 +32,52 @@ export default function InTripScreen() {
     dropoffLng?: string;
   }>();
 
-  const pLat = pickupLat ? parseFloat(pickupLat) : 6.9271;
-  const pLng = pickupLng ? parseFloat(pickupLng) : 79.8612;
-  const dLat = dropoffLat ? parseFloat(dropoffLat) : (pickupLat ? pLat - 0.05 : 6.8413);
-  const dLng = dropoffLng ? parseFloat(dropoffLng) : (pickupLng ? pLng - 0.05 : 79.9654);
+  const [rideData, setRideData] = useState<any>(null);
 
-  const driverLat = pLat + (dLat - pLat) * 0.4;
-  const driverLng = pLng + (dLng - pLng) * 0.4;
+  useEffect(() => {
+    if (!rideRequestId) return;
+    let isMounted = true;
+
+    const fetchRide = async () => {
+      try {
+        const details = await rideService.getRideDetails(rideRequestId);
+        if (isMounted && details) {
+          setRideData(details);
+        }
+      } catch (e) {}
+    };
+
+    fetchRide();
+    const timer = setInterval(fetchRide, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [rideRequestId]);
+
+  const driver = rideData?.acceptedDriver || {};
+
+  const driverName = driver.fullName || "Ravi K. (Driver)";
+  const driverPhone = driver.phoneNumber || "+94771234567";
+  const driverPhoto = driver.profilePhotoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80";
+  const vehicleReg = driver.vehicleNumber || "WP CAH-1234";
+  const vehicleModel = driver.vehicleModel || "Honda Dio";
+  const vehicleColor = driver.vehicleColor || "Black / Yellow";
+  const vehiclePhoto = driver.vehiclePhotoUrl || "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=300&auto=format&fit=crop&q=80";
+  const driverRating = driver.rating ? driver.rating.toFixed(1) : "4.9";
+
+  const pLat = pickupLat ? parseFloat(pickupLat) : (rideData?.pickupLat || 6.9271);
+  const pLng = pickupLng ? parseFloat(pickupLng) : (rideData?.pickupLng || 79.8612);
+  const dLat = dropoffLat ? parseFloat(dropoffLat) : (rideData?.dropoffLat || 6.8413);
+  const dLng = dropoffLng ? parseFloat(dropoffLng) : (rideData?.dropoffLng || 79.9654);
+
+  const driverLat = driver.currentLatitude || (pLat + (dLat - pLat) * 0.4);
+  const driverLng = driver.currentLongitude || (pLng + (dLng - pLng) * 0.4);
 
   const markersList: MapMarker[] = [
-    { id: "1", latitude: pLat, longitude: pLng, title: pickup || "Pickup", type: "pickup" },
-    { id: "driver", latitude: driverLat, longitude: driverLng, title: "Ravi S. (Driver)", type: "driver" },
-    { id: "2", latitude: dLat, longitude: dLng, title: dropoff || "Dropoff", type: "drop" },
+    { id: "1", latitude: pLat, longitude: pLng, title: pickup || rideData?.pickupAddress || "Pickup", type: "pickup" },
+    { id: "driver", latitude: driverLat, longitude: driverLng, title: driverName, type: "driver" },
+    { id: "2", latitude: dLat, longitude: dLng, title: dropoff || rideData?.dropoffAddress || "Dropoff", type: "drop" },
   ];
 
   const handleFinishTrip = async () => {
@@ -54,10 +88,10 @@ export default function InTripScreen() {
       pathname: "/rides/trip-completed" as any,
       params: {
         rideRequestId,
-        fare: fare || "710.07",
+        fare: fare || rideData?.finalFare || "710.07",
         tripCategory: tripCategory || 'ONE_WAY',
-        pickup,
-        dropoff,
+        pickup: pickup || rideData?.pickupAddress,
+        dropoff: dropoff || rideData?.dropoffAddress,
       }
     });
   };
@@ -66,7 +100,7 @@ export default function InTripScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FDB813" />
 
-      {/* Top Yellow Header Bar (Matching user requirement for Header) */}
+      {/* Top Yellow Header Bar */}
       <View style={styles.header}>
         <TouchableOpacity
           activeOpacity={0.7}
@@ -83,19 +117,19 @@ export default function InTripScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Upper Route Map Container with Floating Tooltip (Matching Image 1 / Frame 6) */}
+        {/* Upper Route Map Container */}
         <View style={styles.mapContainer}>
           <InteractiveMap
             height="100%"
-            center={{ latitude: pLat, longitude: pLng }}
-            zoom={13}
+            center={{ latitude: driverLat, longitude: driverLng }}
+            zoom={14}
             markers={markersList}
             showRoute={true}
           />
           {/* Floating Map Pin Tooltip */}
           <View style={styles.mapFloatingTooltip}>
             <Ionicons name="location-sharp" size={18} color="#FDB813" style={{ marginRight: 6 }} />
-            <Text style={styles.tooltipText}>15 min to destination</Text>
+            <Text style={styles.tooltipText}>Rider Live GPS Active</Text>
           </View>
         </View>
 
@@ -103,24 +137,31 @@ export default function InTripScreen() {
         <View style={styles.driverCard}>
           <View style={styles.driverTopRow}>
             <Image
-              source={{ uri: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80" }}
+              source={{ uri: driverPhoto }}
               style={styles.driverAvatar}
             />
             <View style={styles.driverInfoCol}>
               <View style={styles.nameStatusRow}>
-                <Text style={styles.driverName}>Ravi S.</Text>
+                <Text style={styles.driverName}>{driverName}</Text>
                 <View style={styles.onTripBadge}>
                   <Text style={styles.onTripBadgeText}>On Trip</Text>
                 </View>
               </View>
-              <Text style={styles.vehicleModelText}>Toyota Prius - White</Text>
-              <Text style={styles.vehicleRegText}>WP CAH-1234</Text>
+              <Text style={styles.vehicleModelText}>{vehicleModel} • {vehicleColor}</Text>
+              <Text style={styles.vehicleRegText}>{vehicleReg}</Text>
             </View>
             <View style={styles.ratingBadge}>
               <Ionicons name="star" size={14} color="#F59E0B" />
-              <Text style={styles.ratingText}>4.7</Text>
+              <Text style={styles.ratingText}>{driverRating}</Text>
             </View>
           </View>
+
+          {/* Vehicle Photo Thumbnail */}
+          {vehiclePhoto && (
+            <View style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', height: 100, backgroundColor: '#E2E8F0' }}>
+              <Image source={{ uri: vehiclePhoto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </View>
+          )}
         </View>
 
         {/* Trip Progress & ETA Section (Frame 6) */}
@@ -196,13 +237,14 @@ export default function InTripScreen() {
           activeOpacity={0.88}
           style={styles.contactDriverBtn}
           onPress={() => {
-            Linking.openURL('tel:+94771234567').catch(() => {
-              Alert.alert('Contact Driver', 'Calling Driver Ravi K. (+94 77 123 4567)');
+            const telUrl = `tel:${driverPhone.replace(/[^0-9+]/g, '')}`;
+            Linking.openURL(telUrl).catch(() => {
+              Alert.alert('Contact Driver', `Calling Driver ${driverName} (${driverPhone})`);
             });
           }}
         >
           <Ionicons name="call" size={20} color="#061138" style={{ marginRight: 8 }} />
-          <Text style={styles.contactDriverBtnText}>Contact Driver</Text>
+          <Text style={styles.contactDriverBtnText}>Contact Driver ({driverPhone})</Text>
         </TouchableOpacity>
 
         {/* Contact Support Link */}

@@ -58,6 +58,7 @@ export interface AuthResponse {
 
 const USER_STORAGE_KEY = '@yaalu_user_v2';
 const TOKEN_STORAGE_KEY = '@yaalu_token_v2';
+const DRAFT_STORAGE_KEY = '@yaalu_registration_draft_v2';
 
 function normalizeUser(rawUser: any): UserProfile {
   if (!rawUser) return {};
@@ -65,8 +66,24 @@ function normalizeUser(rawUser: any): UserProfile {
   const profile = rawUser.profile || rawUser.customerProfile || root.customerProfile || rawUser.shopProfile || root.shopProfile || rawUser.riderProfile || root.riderProfile || {};
 
   const profilePic = root.profilePicture || root.profilePhoto || root.avatar || profile.profilePicture || profile.profilePhoto || profile.avatar || rawUser.profilePicture || '';
-  const fullName = root.fullName || root.name || profile.fullName || profile.ownerName || (root.firstName ? `${root.firstName} ${root.lastName || ''}`.trim() : '');
-  const phone = root.phoneNumber || root.phone || root.mobile || profile.phoneNumber || profile.phone || profile.mobile || profile.ownerPhone || '';
+  
+  const emailStr = root.email || profile.email || profile.ownerEmail || rawUser.email || '';
+  const isGeneratedPhoneEmail = emailStr.endsWith('@yaalu.app');
+
+  let phone = profile.phoneNumber || profile.phone || profile.mobile || root.phoneNumber || root.phone || root.mobile || profile.ownerPhone || root.ownerPhone || '';
+  if (!phone && isGeneratedPhoneEmail) {
+    phone = emailStr.split('@')[0];
+  }
+  if (!phone && (root.fullName || profile.fullName) && ((root.fullName || profile.fullName).startsWith('+') || /^\+?\d{8,15}$/.test((root.fullName || profile.fullName).replace(/[\s\-()]/g, '')))) {
+    phone = root.fullName || profile.fullName;
+  }
+
+  let fullName = root.fullName || root.name || profile.fullName || profile.ownerName || (root.firstName ? `${root.firstName} ${root.lastName || ''}`.trim() : '');
+  if (fullName && (fullName.startsWith('+') || /^\+?\d{8,15}$/.test(fullName.replace(/[\s\-()]/g, '')))) {
+    fullName = '';
+  }
+
+  const cleanEmail = isGeneratedPhoneEmail ? '' : emailStr;
   const city = root.city || profile.city || '';
   const address = root.address || root.deliveryAddress || profile.deliveryAddress || profile.address || profile.shopAddress || profile.outletAddress || '';
   const nic = root.nicNumber || root.nic || profile.nicNumber || profile.nic || '';
@@ -75,7 +92,7 @@ function normalizeUser(rawUser: any): UserProfile {
     ...profile,
     ...root,
     id: root.id || profile.id || profile.userId || rawUser.id,
-    email: root.email || profile.email || profile.ownerEmail || rawUser.email || '',
+    email: cleanEmail,
     fullName: fullName,
     name: fullName,
     firstName: root.firstName || (fullName ? fullName.split(' ')[0] : ''),
@@ -97,7 +114,8 @@ function normalizeUser(rawUser: any): UserProfile {
 class AuthService {
   private currentUser: UserProfile = {};
   private token: string | null = null;
-  private registrationDraft: Partial<UserProfile> | null = null;
+  private registrationDraft: Partial<UserProfile> = {};
+  private initPromise: Promise<UserProfile>;
 
   getRegistrationDraft(): Partial<UserProfile> {
     return this.registrationDraft || {};
@@ -108,20 +126,32 @@ class AuthService {
       ...(this.registrationDraft || {}),
       ...data,
     };
+    AsyncStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(this.registrationDraft)).catch(() => {});
   }
 
-  clearRegistrationDraft() {
-    this.registrationDraft = null;
+  async clearRegistrationDraft() {
+    this.registrationDraft = {};
+    try {
+      await AsyncStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch (e) {
+      // ignore
+    }
   }
 
   constructor() {
-    this.loadFromStorage();
+    this.initPromise = this.loadFromStorage();
   }
 
-  private async loadFromStorage() {
+  async ensureInitialized(): Promise<UserProfile> {
+    await this.initPromise;
+    return this.currentUser;
+  }
+
+  private async loadFromStorage(): Promise<UserProfile> {
     try {
       const storedUser = await AsyncStorage.getItem(USER_STORAGE_KEY);
       const storedToken = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
+      const storedDraft = await AsyncStorage.getItem(DRAFT_STORAGE_KEY);
       if (storedUser) {
         this.currentUser = normalizeUser(JSON.parse(storedUser));
       }
@@ -129,9 +159,13 @@ class AuthService {
         this.token = storedToken;
         apiClient.setToken(storedToken);
       }
+      if (storedDraft) {
+        this.registrationDraft = JSON.parse(storedDraft) || {};
+      }
     } catch (e) {
       console.warn('[AuthService Storage Load Warning]:', e);
     }
+    return this.currentUser;
   }
 
   private async saveToStorage() {
@@ -145,6 +179,33 @@ class AuthService {
     } catch (e) {
       console.warn('[AuthService Storage Save Warning]:', e);
     }
+  }
+
+  async fetchProfile(): Promise<UserProfile> {
+    await this.ensureInitialized();
+    const id = this.currentUser?.id;
+    const email = this.currentUser?.email;
+
+    if (!id && !email) {
+      return this.currentUser;
+    }
+
+    try {
+      const queryParams = [];
+      if (id) queryParams.push(`id=${encodeURIComponent(id)}`);
+      if (email) queryParams.push(`email=${encodeURIComponent(email)}`);
+      const url = `/auth/profile?${queryParams.join('&')}`;
+
+      const data = await apiClient.get<any>(url);
+      const rawUser = data?.user || data;
+      if (rawUser && (rawUser.id || rawUser.email)) {
+        this.currentUser = normalizeUser({ ...this.currentUser, ...rawUser });
+        await this.saveToStorage();
+      }
+    } catch (err: any) {
+      console.log('[AuthService fetchProfile]: Using local profile cache.');
+    }
+    return this.currentUser;
   }
 
   async register(payload: RegisterUserPayload): Promise<AuthResponse> {
@@ -170,10 +231,19 @@ class AuthService {
   }
 
   async updateProfile(payload: Partial<UserProfile>): Promise<{ user?: UserProfile }> {
+    await this.ensureInitialized();
+    const targetId = payload.id || this.currentUser?.id;
+    const targetEmail = payload.email || this.currentUser?.email;
+
+    if (!targetId && !targetEmail) {
+      console.warn('[AuthService updateProfile Warning]: Cannot update profile without user ID or email.');
+      return { user: this.currentUser };
+    }
+
     const mergedPayload = {
       ...payload,
-      id: payload.id || this.currentUser?.id,
-      email: payload.email || this.currentUser?.email,
+      id: targetId,
+      email: targetEmail,
     };
     try {
       const data = await apiClient.patch<{ user?: UserProfile }>('/auth/profile', mergedPayload);

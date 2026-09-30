@@ -56,10 +56,12 @@ export default function CreatePasswordScreen() {
       return;
     }
 
+    await authService.ensureInitialized();
     const draft = authService.getRegistrationDraft();
-    if (!draft.email) {
+    const emailToUse = draft.email || (draft.phoneNumber ? `${draft.phoneNumber.replace(/[\s\-()]/g, '')}@yaalu.app` : '');
+
+    if (!emailToUse && !draft.phoneNumber) {
       Alert.alert('Registration Error', 'Missing registration details. Please restart registration.');
-      // DO NOT automatically redirect here, as it causes race conditions on double-click.
       return;
     }
 
@@ -68,10 +70,10 @@ export default function CreatePasswordScreen() {
     try {
       const first = (draft.firstName || '').trim();
       const last = (draft.lastName || '').trim();
-      const combinedFullName = [first, last].filter(Boolean).join(' ');
+      const combinedFullName = [first, last].filter(Boolean).join(' ') || draft.fullName || '';
 
       await authService.register({
-        email: draft.email,
+        email: emailToUse,
         password: password,
         firstName: draft.firstName,
         lastName: draft.lastName,
@@ -87,7 +89,7 @@ export default function CreatePasswordScreen() {
         role: 'CUSTOMER',
       });
 
-      authService.clearRegistrationDraft();
+      await authService.clearRegistrationDraft();
       
       // Navigate to Home automatically
       router.replace('/(tabs)');

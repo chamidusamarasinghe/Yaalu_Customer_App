@@ -10,13 +10,15 @@ import {
   Modal,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap from '../../components/InteractiveMap';
 import { cardService } from '../../services/api/card-service';
-import { rideService } from '../../services/api/ride-service';
+import { rideService, NearbyRiderItem } from '../../services/api/ride-service';
+
 
 interface VehicleOption {
   id: string;
@@ -271,14 +273,30 @@ export default function SelectVehicleScreen() {
       driverNote,
     };
 
-    if (mode === 'bidding') {
-      router.push({ pathname: '/rides/bidding-timer' as any, params: routeParams });
-    } else {
-      router.push({ pathname: '/rides/confirm-pickup' as any, params: routeParams });
-    }
+    // Always route directly to searching waiting screen with blinking vehicle markers
+    router.push({ pathname: '/rides/bidding-timer' as any, params: routeParams });
   };
 
-  // Build dynamic markers from resolved coordinates
+  // State for live nearby available riders based on requirement
+  const [nearbyRiders, setNearbyRiders] = useState<NearbyRiderItem[]>([]);
+
+  useEffect(() => {
+    const activeVehConfig = VEHICLE_CONFIGS.find((v) => v.id === selectedVehicleId);
+    const backendType = activeVehConfig?.backendType || 'THREE_WHEEL';
+
+    rideService.getNearbyRiders({
+      pickupLat: pickupCoords.lat,
+      pickupLng: pickupCoords.lng,
+      vehicleType: backendType,
+      radiusKm: 5.0,
+    }).then((riders) => {
+      if (Array.isArray(riders)) {
+        setNearbyRiders(riders);
+      }
+    }).catch((e) => console.warn('[select-vehicle getNearbyRiders error]:', e));
+  }, [selectedVehicleId, pickupCoords]);
+
+  // Build dynamic markers from resolved coordinates and nearby riders
   const vehicleMarkers: any[] = [
     {
       id: 'p1',
@@ -294,9 +312,19 @@ export default function SelectVehicleScreen() {
       title: dropoff || 'Destination',
       type: 'drop',
     },
+    ...nearbyRiders.map((r, i) => ({
+      id: `rider_${r.id}_${i}`,
+      latitude: r.currentLatitude,
+      longitude: r.currentLongitude,
+      // if we want to show the rider name and eta in the map marker, uncomment the following line
+      // title: `${r.fullName} • ${r.etaText}`,
+      type: 'vehicle',
+      vehicleType: selectedVehicleId || r.normalizedVehicleType || r.vehicleType,
+    })),
   ];
 
   const mapCenter = { latitude: pickupCoords.lat, longitude: pickupCoords.lng };
+
 
   return (
     <View style={styles.container}>
@@ -376,8 +404,59 @@ export default function SelectVehicleScreen() {
             })}
           </ScrollView>
 
+          {/* Available Nearby Riders Section matching Customer Requirement */}
+          {nearbyRiders && nearbyRiders.length > 0 && (
+            <View style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#0F172A' }}>
+                  ⚡ Available Drivers Nearby ({nearbyRiders.length})
+                </Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>
+                  ● Live Active
+                </Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {nearbyRiders.map((rider) => (
+                  <View
+                    key={rider.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: 12,
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                      borderWidth: 1,
+                      borderColor: '#CBD5E1',
+                    }}
+                  >
+                    <Image
+                      source={{ uri: rider.profilePhotoUrl }}
+                      style={{ width: 34, height: 34, borderRadius: 17, marginRight: 8 }}
+                    />
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#0F172A', marginRight: 4 }}>
+                          {rider.fullName}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                          <Ionicons name="star" size={9} color="#D97706" />
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#D97706', marginLeft: 2 }}>{rider.rating}</Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: '#475569' }}>
+                        {rider.vehicleModel} • {rider.etaText} ({rider.distanceKm} km)
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Payment & Promo Strip Row */}
           <View style={styles.paymentStripRow}>
+
             {/* Payment Method Switcher (Cash vs Card) */}
             <TouchableOpacity
               activeOpacity={0.8}

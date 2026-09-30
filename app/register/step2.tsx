@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -56,6 +56,17 @@ export default function RegistrationStep2Screen() {
 
   const [isCityModalVisible, setIsCityModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    authService.ensureInitialized().then(() => {
+      const d = authService.getRegistrationDraft();
+      if (d.email && !email) setEmail(d.email);
+      if (d.city && !city) setCity(d.city);
+      if (d.address && !address) setAddress(d.address);
+      if (d.latitude) setLatitude(d.latitude);
+      if (d.longitude) setLongitude(d.longitude);
+    });
+  }, []);
 
   const handleMapLocationSelect = async (lat: number, lng: number) => {
     setLatitude(lat);

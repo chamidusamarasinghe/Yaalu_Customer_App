@@ -24,24 +24,29 @@ interface ShopItem {
 export default function CustomerHomeScreen() {
   const router = useRouter();
 
-  const [currentUser, setCurrentUser] = useState(authService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<any>({});
   
-    React.useEffect(() => {
-      async function loadLatestProfile() {
-        try {
-          const u = authService.getCurrentUser();
-          if (u.id || u.email) {
-            const res = await authService.updateProfile({ id: u.id, email: u.email });
-            if (res && res.user) {
-              setCurrentUser(res.user);
-            }
-          }
-        } catch (e) {
-          // Cached profile
-        }
+  React.useEffect(() => {
+    let isMounted = true;
+    async function loadLatestProfile() {
+      const cached = await authService.ensureInitialized();
+      if (isMounted && cached) {
+        setCurrentUser(cached);
       }
-      loadLatestProfile();
-    }, []);
+      try {
+        const fresh = await authService.fetchProfile();
+        if (isMounted && fresh) {
+          setCurrentUser(fresh);
+        }
+      } catch (e) {
+        // Cached profile
+      }
+    }
+    loadLatestProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   
     const userName = currentUser.fullName || currentUser.name || (currentUser.firstName ? (currentUser.firstName + ' ' + (currentUser.lastName || '')).trim() : 'Customer');
 

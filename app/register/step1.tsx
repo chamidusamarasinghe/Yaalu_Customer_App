@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -28,6 +28,17 @@ export default function RegistrationStep1Screen() {
   const [nicNumber, setNicNumber] = useState(draft.nicNumber || '');
   const [profilePicture, setProfilePicture] = useState<string | null>(draft.profilePicture || null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  useEffect(() => {
+    authService.ensureInitialized().then(() => {
+      const d = authService.getRegistrationDraft();
+      if (d.firstName && !firstName) setFirstName(d.firstName);
+      if (d.lastName && !lastName) setLastName(d.lastName);
+      if (d.phoneNumber && !phoneNumber) setPhoneNumber(d.phoneNumber);
+      if (d.nicNumber && !nicNumber) setNicNumber(d.nicNumber);
+      if (d.profilePicture && !profilePicture) setProfilePicture(d.profilePicture);
+    });
+  }, []);
 
   const processAndUploadPhoto = async (localUri: string) => {
     setIsUploadingPhoto(true);
