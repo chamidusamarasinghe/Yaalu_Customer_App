@@ -122,6 +122,13 @@ export default function ShopCatalogScreen() {
   const cartCount = cartService.getTotalCount();
   const cartTotal = cartService.getSubtotal();
 
+  // Create a shop map for quick lookup by shop ID (merchantId)
+  const shopMap = React.useMemo(() => {
+    const map: { [id: string]: ShopItem } = {};
+    shops.forEach((s) => { map[s.id] = s; });
+    return map;
+  }, [shops]);
+
   // Filter products by category & search query
   const filteredProducts = products.filter((item) => {
     const itemName = item?.name || (item as any)?.title || '';
@@ -255,6 +262,16 @@ export default function ShopCatalogScreen() {
                   {/* Title & Subtitle */}
                   <Text style={styles.productTitle} numberOfLines={1}>{item.name}</Text>
                   <Text style={styles.productSubtitle} numberOfLines={1}>{item.unit || item.description || 'Fresh Produce'}</Text>
+
+                  {/* Shop Name Badge */}
+                  {shopMap[item.merchantId] && (
+                    <View style={styles.shopNameBadge}>
+                      <Ionicons name="storefront-outline" size={11} color="#0036AA" style={{ marginRight: 4 }} />
+                      <Text style={styles.shopNameBadgeText} numberOfLines={1}>
+                        {shopMap[item.merchantId].shopName}
+                      </Text>
+                    </View>
+                  )}
 
                   {/* Price & Cart Control Row */}
                   <View style={styles.priceRow}>
@@ -414,7 +431,22 @@ const styles = StyleSheet.create({
   },
   productImage: { width: '100%', height: '100%' },
   productTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A', marginBottom: 2 },
-  productSubtitle: { fontSize: 12, color: '#64748B', marginBottom: 10 },
+  productSubtitle: { fontSize: 12, color: '#64748B', marginBottom: 4 },
+  shopNameBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+  shopNameBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1E40AF',
+  },
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   productPrice: { fontSize: 14, fontWeight: '800', color: '#059669' },
   addPlusBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#FDB813', justifyContent: 'center', alignItems: 'center' },
