@@ -75,22 +75,43 @@ export default function BiddingTimerScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  // Auto navigate to confirm bid after 4.5 seconds
+  // Poll backend until ride is ACCEPTED
   useEffect(() => {
-    const autoNav = setTimeout(() => {
-      const targetId = createdRideIdRef.current || rideRecord?.id;
-      router.push({
-        pathname: "/rides/bidding-confirm" as any,
-        params: {
-          rideRequestId: targetId,
-          tripCategory: params.tripCategory || 'ONE_WAY',
-          pickup: params.pickup,
-          dropoff: params.dropoff,
+    let pollInterval: NodeJS.Timeout;
+
+    const startPolling = () => {
+      pollInterval = setInterval(async () => {
+        const targetId = createdRideIdRef.current || rideRecord?.id;
+        if (!targetId) return;
+
+        try {
+          const details = await rideService.getRideDetails(targetId);
+          if (details.status === 'ACCEPTED') {
+            clearInterval(pollInterval);
+            router.push({
+              pathname: "/rides/bidding-confirm" as any,
+              params: {
+                rideRequestId: targetId,
+                tripCategory: params.tripCategory || 'ONE_WAY',
+                pickup: params.pickup,
+                dropoff: params.dropoff,
+              }
+            });
+          }
+        } catch (error) {
+          console.log("Polling ride details error:", error);
         }
-      });
-    }, 4500);
-    return () => clearTimeout(autoNav);
-  }, [params.tripCategory]);
+      }, 3000); // Check every 3 seconds
+    };
+
+    if (rideRecord) {
+      startPolling();
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [rideRecord, params.tripCategory, params.pickup, params.dropoff]);
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);

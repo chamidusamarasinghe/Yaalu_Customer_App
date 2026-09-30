@@ -28,7 +28,8 @@ export default function BiddingConfirmScreen() {
       rideService.getRideDetails(rideRequestId).then((details) => {
         setRideDetails(details);
         if (details.bids && details.bids.length > 0) {
-          setSelectedBid(details.bids[0]);
+          const acceptedBid = details.bids.find((b: any) => b.status === 'ACCEPTED') || details.bids[0];
+          setSelectedBid(acceptedBid);
         }
       }).catch((e) => console.warn('[BiddingConfirm fetch error]:', e));
     }
@@ -168,7 +169,7 @@ export default function BiddingConfirmScreen() {
           onPress={handleConfirmBooking}
         >
           <Ionicons name="checkmark-circle" size={22} color="#061138" style={{ marginRight: 8 }} />
-          <Text style={styles.confirmBtnText}>Confirm {driverName.split(' ')[0]}'s Booking</Text>
+          <Text style={styles.confirmBtnText}>Confirm Hire</Text>
         </TouchableOpacity>
       </ScrollView>
 
