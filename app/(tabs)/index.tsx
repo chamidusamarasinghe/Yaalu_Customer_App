@@ -1,8 +1,10 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, StatusBar, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, StatusBar, Dimensions, Platform, Modal, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { authService } from '../../services/api/auth-service';
 
 const { width } = Dimensions.get('window');
@@ -25,9 +27,12 @@ export default function CustomerHomeScreen() {
   const router = useRouter();
 
   const [currentUser, setCurrentUser] = useState<any>({});
-  
-  React.useEffect(() => {
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [locationModalVisible, setLocationModalVisible] = useState<boolean>(false);
+
+  useEffect(() => {
     let isMounted = true;
+
     async function loadLatestProfile() {
       const cached = await authService.ensureInitialized();
       if (isMounted && cached) {
@@ -38,15 +43,64 @@ export default function CustomerHomeScreen() {
         if (isMounted && fresh) {
           setCurrentUser(fresh);
         }
+      } catch (e) {}
+    }
+
+    async function loadOnlinePreference() {
+      try {
+        const val = await AsyncStorage.getItem('customer_is_online');
+        if (isMounted && val !== null) {
+          setIsOnline(val === 'true');
+        }
+      } catch (e) {}
+    }
+
+    async function checkDeviceLocationService() {
+      try {
+        const isServicesEnabled = await Location.hasServicesEnabledAsync();
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (!isServicesEnabled || status !== 'granted') {
+          if (isMounted) {
+            setLocationModalVisible(true);
+          }
+        }
       } catch (e) {
-        // Cached profile
+        // Fallback for iframe web environment
       }
     }
+
     loadLatestProfile();
+    loadOnlinePreference();
+    checkDeviceLocationService();
+
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const toggleOnlineStatus = async () => {
+    const nextState = !isOnline;
+    setIsOnline(nextState);
+    await AsyncStorage.setItem('customer_is_online', String(nextState)).catch(() => {});
+  };
+
+  const handleEnableLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      const isEnabled = await Location.hasServicesEnabledAsync();
+      if (status === 'granted' && isEnabled) {
+        setLocationModalVisible(false);
+        Alert.alert('📍 Location Enabled', 'Your location is active so nearby riders can find you!');
+      } else {
+        Alert.alert(
+          'Location Required',
+          'Riders locate nearby customers using live GPS coordinates. Please turn on Location Services in your phone settings.'
+        );
+      }
+    } catch (e) {
+      setLocationModalVisible(false);
+    }
+  };
   
     const userName = currentUser.fullName || currentUser.name || (currentUser.firstName ? (currentUser.firstName + ' ' + (currentUser.lastName || '')).trim() : 'Customer');
 
@@ -75,8 +129,20 @@ export default function CustomerHomeScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* Header Right Action Icons */}
+              {/* Header Right Action Icons & Status Toggle */}
               <View style={styles.headerActionsRight}>
+                {/* Online / Offline Status Toggle Badge */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={[styles.statusToggleBadge, isOnline ? styles.onlineBadgeBg : styles.offlineBadgeBg]}
+                  onPress={toggleOnlineStatus}
+                >
+                  <View style={[styles.statusDot, isOnline ? styles.onlineDotBg : styles.offlineDotBg]} />
+                  <Text style={[styles.statusBadgeText, isOnline ? styles.onlineBadgeText : styles.offlineBadgeText]}>
+                    {isOnline ? 'ONLINE' : 'OFFLINE'}
+                  </Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity activeOpacity={0.8} style={styles.headerIconBtn}>
                   <Ionicons name="notifications-outline" size={22} color="#061138" />
                   <View style={styles.notifBadgeDot} />
@@ -239,6 +305,39 @@ export default function CustomerHomeScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* LOCATION ENABLE PROMPT MODAL */}
+      <Modal visible={locationModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.locationModalCard}>
+            <View style={styles.locationIconCircle}>
+              <Ionicons name="location" size={36} color="#2563EB" />
+            </View>
+
+            <Text style={styles.locationModalTitle}>Turn On Location Services</Text>
+            <Text style={styles.locationModalSubtext}>
+              Yaalu requires your active device location so nearby riders can find your pickup spot accurately. Please enable location services.
+            </Text>
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.enableLocationBtn}
+              onPress={handleEnableLocation}
+            >
+              <Ionicons name="navigate-sharp" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.enableLocationBtnText}>ENABLE LOCATION</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.dismissLocationBtn}
+              onPress={() => setLocationModalVisible(false)}
+            >
+              <Text style={styles.dismissLocationBtnText}>I'll Do It Later</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -247,6 +346,118 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  statusToggleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  onlineBadgeBg: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  offlineBadgeBg: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#CBD5E1',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  onlineDotBg: {
+    backgroundColor: '#16A34A',
+  },
+  offlineDotBg: {
+    backgroundColor: '#64748B',
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  onlineBadgeText: {
+    color: '#15803D',
+  },
+  offlineBadgeText: {
+    color: '#475569',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  locationModalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  locationIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#BFDBFE',
+  },
+  locationModalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  locationModalSubtext: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  enableLocationBtn: {
+    width: '100%',
+    backgroundColor: '#2563EB',
+    borderRadius: 14,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+    marginBottom: 10,
+  },
+  enableLocationBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  dismissLocationBtn: {
+    paddingVertical: 10,
+  },
+  dismissLocationBtnText: {
+    color: '#64748B',
+    fontSize: 14,
+    fontWeight: '700',
   },
   scrollContent: {
     paddingBottom: Platform.OS === 'ios' ? 100 : 80,
@@ -290,7 +501,8 @@ const styles = StyleSheet.create({
   },
   headerActionsRight: {
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    gap: 8,
   },
   headerIconBtn: {
     width: 42,

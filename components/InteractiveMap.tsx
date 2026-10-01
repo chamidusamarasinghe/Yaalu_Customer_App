@@ -73,6 +73,19 @@ export default function InteractiveMap({
           0%, 100% { opacity: 1; filter: brightness(1); }
           50% { opacity: 0.45; filter: brightness(1.4); }
         }
+        .custom-pin-user {
+          background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+          color: white;
+          padding: 6px 14px;
+          border-radius: 16px;
+          font-size: 12px;
+          font-weight: 800;
+          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+          border: 2px solid #93C5FD;
+          white-space: nowrap;
+          text-align: center;
+          transform: translate(-50%, -50%);
+        }
         .custom-pin-pickup {
           background: linear-gradient(135deg, #0B1044 0%, #1E293B 100%);
           color: #FFC72C;
@@ -195,8 +208,13 @@ export default function InteractiveMap({
 
             el = wrapper;
           } else {
-            var className = pinType === 'drop' ? 'custom-pin-drop' : (pinType === 'driver' ? 'custom-pin-driver' : 'custom-pin-pickup');
-            var labelHtml = (pinType === 'driver' ? '🛵 ' : (pinType === 'drop' ? '🎯 ' : '🏬 ')) + (m.title || 'Location');
+            var className = (pinType === 'user' || pinType === 'current_location')
+              ? 'custom-pin-user'
+              : (pinType === 'drop' ? 'custom-pin-drop' : (pinType === 'driver' ? 'custom-pin-driver' : 'custom-pin-pickup'));
+            
+            var labelHtml = ((pinType === 'user' || pinType === 'current_location')
+              ? '📍 '
+              : (pinType === 'driver' ? '🛵 ' : (pinType === 'drop' ? '🎯 ' : '🏬 '))) + (m.title || 'Location');
 
             el = document.createElement('div');
             el.className = className;
@@ -217,26 +235,40 @@ export default function InteractiveMap({
         });
 
 
-        if (${showRoute} && olCoords.length >= 2) {
-          var startM = markersData[0];
-          var endM = markersData[markersData.length - 1];
-          var osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' + startM.longitude + ',' + startM.latitude + ';' + endM.longitude + ',' + endM.latitude + '?overview=full&geometries=geojson';
+        if (${showRoute}) {
+          var pickupM = markersData.find(function(m) {
+            var t = (m.type || '').toLowerCase();
+            return t === 'pickup' || t === 'user' || t === 'current_location';
+          });
+          var dropM = markersData.find(function(m) {
+            var t = (m.type || '').toLowerCase();
+            return t === 'drop' || t === 'dropoff' || t === 'destination';
+          });
 
-          fetch(osrmUrl)
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-              if (data && data.routes && data.routes.length > 0 && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
-                var roadCoords = data.routes[0].geometry.coordinates.map(function(pt) {
-                  return ol.proj.fromLonLat([pt[0], pt[1]]);
-                });
-                drawRoutePolyline(roadCoords);
-              } else {
-                drawRoutePolyline(olCoords);
-              }
-            })
-            .catch(function() {
-              drawRoutePolyline(olCoords);
-            });
+          if (!pickupM && markersData.length >= 2) pickupM = markersData[0];
+          if (!dropM && markersData.length >= 2) dropM = markersData[1];
+
+          if (pickupM && dropM) {
+            var osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' + pickupM.longitude + ',' + pickupM.latitude + ';' + dropM.longitude + ',' + dropM.latitude + '?overview=full&geometries=geojson';
+
+            fetch(osrmUrl)
+              .then(function(res) { return res.json(); })
+              .then(function(data) {
+                if (data && data.routes && data.routes.length > 0 && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+                  var roadCoords = data.routes[0].geometry.coordinates.map(function(pt) {
+                    return ol.proj.fromLonLat([pt[0], pt[1]]);
+                  });
+                  drawRoutePolyline(roadCoords);
+                } else {
+                  var directCoords = [ol.proj.fromLonLat([pickupM.longitude, pickupM.latitude]), ol.proj.fromLonLat([dropM.longitude, dropM.latitude])];
+                  drawRoutePolyline(directCoords);
+                }
+              })
+              .catch(function() {
+                var directCoords = [ol.proj.fromLonLat([pickupM.longitude, pickupM.latitude]), ol.proj.fromLonLat([dropM.longitude, dropM.latitude])];
+                drawRoutePolyline(directCoords);
+              });
+          }
         } else if (olCoords.length === 1) {
           map.getView().setCenter(olCoords[0]);
           map.getView().setZoom(${zoom});
@@ -314,10 +346,13 @@ export default function InteractiveMap({
     }
   };
 
+  const mapKey = `map_${mapCenter.latitude.toFixed(4)}_${mapCenter.longitude.toFixed(4)}_${validMarkers.length}_${validMarkers.map((m) => `${m.latitude.toFixed(4)}_${m.longitude.toFixed(4)}`).join('_')}`;
+
   if (Platform.OS === 'web') {
     return (
       <View style={[styles.container, { height: height as any }]}>
         {React.createElement('iframe', {
+          key: mapKey,
           srcDoc: openStreetMapHtml,
           style: { width: '100%', height: '100%', border: 'none' },
           title: 'OpenStreetMap Live Navigation Map',
@@ -329,6 +364,7 @@ export default function InteractiveMap({
   return (
     <View style={[styles.container, { height: height as any }]}>
       <WebView
+        key={mapKey}
         ref={webViewRef}
         originWhitelist={['*']}
         source={{ html: openStreetMapHtml }}

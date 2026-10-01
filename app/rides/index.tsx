@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,6 +14,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap, { MapMarker } from '../../components/InteractiveMap';
+import * as Location from 'expo-location';
 
 const SRI_LANKA_CITIES: Record<string, { lat: number; lng: number }> = {
   // Western Province
@@ -46,6 +47,26 @@ const SRI_LANKA_CITIES: Record<string, { lat: number; lng: number }> = {
   hanwella: { lat: 6.9022, lng: 80.0864 },
   avissawella: { lat: 6.9531, lng: 80.2070 },
   gampaha: { lat: 7.0840, lng: 79.9925 },
+  pasyala: { lat: 7.1419, lng: 80.1263 },
+  nittambuwa: { lat: 7.1436, lng: 80.0994 },
+  veyangoda: { lat: 7.1558, lng: 80.0630 },
+  mirigama: { lat: 7.2435, lng: 80.1264 },
+  warakapola: { lat: 7.2253, lng: 80.1974 },
+  ambepussa: { lat: 7.2660, lng: 80.1980 },
+  kegalle: { lat: 7.2513, lng: 80.3464 },
+  mawanella: { lat: 7.2520, lng: 80.4468 },
+  kadugannawa: { lat: 7.2547, lng: 80.5284 },
+  minuwangoda: { lat: 7.1678, lng: 79.9542 },
+  divulapitiya: { lat: 7.2117, lng: 80.0150 },
+  katunayake: { lat: 7.1706, lng: 79.8864 },
+  seeduwa: { lat: 7.1264, lng: 79.8870 },
+  ragama: { lat: 7.0274, lng: 79.9198 },
+  kandana: { lat: 7.0467, lng: 79.8978 },
+  ganemulla: { lat: 7.0674, lng: 79.9576 },
+  biyagama: { lat: 6.9583, lng: 79.9917 },
+  delgoda: { lat: 6.9744, lng: 80.0078 },
+  pugoda: { lat: 6.9689, lng: 80.1214 },
+  dompe: { lat: 6.9583, lng: 80.0520 },
   negombo: { lat: 7.2008, lng: 79.8737 },
   wattala: { lat: 6.9890, lng: 79.8920 },
   'ja-ela': { lat: 7.0750, lng: 79.8910 },
@@ -110,14 +131,24 @@ async function geocodeAddress(query: string): Promise<{ latitude: number; longit
   }
   const clean = query.trim().toLowerCase();
 
-  // 1. Exact or partial match from Sri Lankan cities dictionary
+  // 1. Check if string contains explicit coordinates like "(6.9271, 79.8612)" or "6.9271, 79.8612"
+  const coordMatch = query.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]);
+    const lng = parseFloat(coordMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && lat >= 5.0 && lat <= 10.0 && lng >= 79.0 && lng <= 82.0) {
+      return { latitude: lat, longitude: lng };
+    }
+  }
+
+  // 2. Exact or partial match from Sri Lankan cities dictionary
   for (const [cityKey, coords] of Object.entries(SRI_LANKA_CITIES)) {
     if (clean === cityKey || clean.includes(cityKey) || (clean.length >= 3 && cityKey.startsWith(clean))) {
       return { latitude: coords.lat, longitude: coords.lng };
     }
   }
 
-  // 2. OpenStreetMap Nominatim lookup
+  // 3. OpenStreetMap Nominatim lookup
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Sri Lanka')}`, {
       headers: { 'User-Agent': 'YaaluCustomerApp/1.0' },
@@ -138,17 +169,59 @@ async function geocodeAddress(query: string): Promise<{ latitude: number; longit
     // Ignore network errors
   }
 
-  // 3. Deterministic Hash across full Sri Lanka bounds (Lat 6.0 to 9.5, Lng 79.8 to 81.5)
-  let hash = 0;
-  for (let i = 0; i < clean.length; i++) {
-    hash = (hash << 5) - hash + clean.charCodeAt(i);
-    hash |= 0;
-  }
-  const absHash = Math.abs(hash);
-  const lat = 6.0 + ((absHash % 1000) / 1000) * 3.5;
-  const lng = 79.8 + (((absHash >> 3) % 1000) / 1000) * 1.7;
+  return null;
+}
 
-  return { latitude: lat, longitude: lng };
+async function reverseGeocodeCoords(lat: number, lng: number): Promise<string> {
+  // 1. Try Nominatim reverse geocoding API
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      {
+        headers: { 'User-Agent': 'YaaluCustomerApp/1.0' },
+      }
+    );
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.address) {
+        const road = data.address.road || data.address.pedestrian || data.address.suburb || data.address.neighbourhood;
+        const city = data.address.city || data.address.town || data.address.village || data.address.suburb || data.address.county;
+
+        if (road && city) {
+          return `${road}, ${city}`;
+        }
+        if (road) {
+          return `${road}`;
+        }
+        if (city) {
+          return `${city}`;
+        }
+        if (data.display_name) {
+          const parts = data.display_name.split(',');
+          return parts.slice(0, 2).join(',').trim();
+        }
+      }
+    }
+  } catch (err) {
+    // Fallback
+  }
+
+  // 2. Nearest Sri Lanka City lookup fallback
+  let closestCity = '';
+  let minDistance = Infinity;
+  for (const [cityKey, coords] of Object.entries(SRI_LANKA_CITIES)) {
+    const dist = Math.sqrt(Math.pow(lat - coords.lat, 2) + Math.pow(lng - coords.lng, 2));
+    if (dist < minDistance) {
+      minDistance = dist;
+      closestCity = cityKey.charAt(0).toUpperCase() + cityKey.slice(1);
+    }
+  }
+
+  if (minDistance < 0.05 && closestCity) {
+    return `${closestCity} (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+  }
+
+  return `Point (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
 }
 
 export default function RideDestinationScreen() {
@@ -178,19 +251,79 @@ export default function RideDestinationScreen() {
     }
   };
 
-  // Format map tap location cleanly
+  // Map tap handler with real-time reverse geocoding
   const handleMapTap = async (lat: number, lng: number) => {
-    const formattedCoord = `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-
     if (activeTarget === 'pickup') {
       setPickupCoords({ latitude: lat, longitude: lng });
-      setPickupLocation(formattedCoord);
+      setPickupLocation(`Locating... (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+      const resolvedAddress = await reverseGeocodeCoords(lat, lng);
+      setPickupLocation(resolvedAddress);
       setActiveTarget('drop'); // Automatically prompt for drop location on next tap
     } else {
       setDropCoords({ latitude: lat, longitude: lng });
-      setDropLocation(formattedCoord);
+      setDropLocation(`Locating... (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+      const resolvedAddress = await reverseGeocodeCoords(lat, lng);
+      setDropLocation(resolvedAddress);
     }
   };
+
+  const handleUseCurrentGPSLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to detect your current position.');
+        return;
+      }
+      setPickupLocation('Locating GPS position...');
+      const location = await Location.getCurrentPositionAsync({});
+      const lat = location.coords.latitude;
+      const lng = location.coords.longitude;
+      setPickupCoords({ latitude: lat, longitude: lng });
+      const address = await reverseGeocodeCoords(lat, lng);
+      setPickupLocation(address);
+    } catch (e) {
+      setPickupCoords({ latitude: 6.9271, longitude: 79.8612 });
+      setPickupLocation('Colombo, Sri Lanka');
+    }
+  };
+
+  // Automatically detect customer's current GPS location on screen mount
+  useEffect(() => {
+    let isMounted = true;
+    async function initCustomerLocation() {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({});
+          if (isMounted && location && location.coords) {
+            const lat = location.coords.latitude;
+            const lng = location.coords.longitude;
+            setPickupCoords({ latitude: lat, longitude: lng });
+            setPickupLocation(`Locating... (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+            const address = await reverseGeocodeCoords(lat, lng);
+            if (isMounted) {
+              setPickupLocation(address);
+            }
+          }
+        } else {
+          if (isMounted) {
+            setPickupCoords({ latitude: 6.9271, longitude: 79.8612 });
+            setPickupLocation('Colombo, Sri Lanka');
+          }
+        }
+      } catch (e) {
+        if (isMounted) {
+          setPickupCoords({ latitude: 6.9271, longitude: 79.8612 });
+          setPickupLocation('Colombo, Sri Lanka');
+        }
+      }
+    }
+
+    initCustomerLocation();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSelectQuickDestination = (destinationName: string, lat?: number, lng?: number) => {
     setDropLocation(destinationName);
@@ -240,8 +373,8 @@ export default function RideDestinationScreen() {
       id: 'pickup_pin',
       latitude: pickupCoords.latitude,
       longitude: pickupCoords.longitude,
-      title: pickupLocation || 'Pickup',
-      type: 'pickup',
+      title: pickupLocation ? `📍 ${pickupLocation}` : '📍 Current Location',
+      type: 'user',
     });
   }
   if (dropCoords) {
@@ -284,6 +417,16 @@ export default function RideDestinationScreen() {
             interactivePicker={true}
             onLocationSelect={handleMapTap}
           />
+
+          {/* Floating GPS Location Button directly on Map */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.gpsMapFab}
+            onPress={handleUseCurrentGPSLocation}
+          >
+            <Ionicons name="navigate-circle" size={20} color="#2563EB" />
+            <Text style={styles.gpsMapFabText}>My Location</Text>
+          </TouchableOpacity>
 
           {/* Map Selection Target Mode Indicator Strip */}
           <View style={styles.targetSelectionStrip}>
@@ -357,8 +500,8 @@ export default function RideDestinationScreen() {
                 placeholder="Tap map or type pickup..."
                 placeholderTextColor="#94A3B8"
               />
-              <TouchableOpacity activeOpacity={0.7} onPress={() => setActiveTarget('pickup')}>
-                <Ionicons name="locate-outline" size={20} color="#2563EB" />
+              <TouchableOpacity activeOpacity={0.7} onPress={handleUseCurrentGPSLocation} style={{ padding: 4 }}>
+                <Ionicons name="locate-sharp" size={22} color="#2563EB" />
               </TouchableOpacity>
             </TouchableOpacity>
 
@@ -710,6 +853,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  gpsMapFab: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+  },
+  gpsMapFabText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E40AF',
   },
 });
 

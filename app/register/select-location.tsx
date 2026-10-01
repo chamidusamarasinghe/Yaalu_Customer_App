@@ -1,11 +1,11 @@
-import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, StatusBar, Dimensions, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import YellowHeader from '../../components/YellowHeader';
 import InteractiveMap from '../../components/InteractiveMap';
 import { searchOSMLocation, reverseOSMGeocode } from '../../services/osmService';
+import * as Location from 'expo-location';
 
 const { width } = Dimensions.get('window');
 
@@ -13,9 +13,50 @@ export default function SelectLocationScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [currentCoords, setCurrentCoords] = useState({ latitude: 6.9271, longitude: 79.8612 });
-  const [mainAddress, setMainAddress] = useState('42, Galle Road, Bambalapitiya');
-  const [subAddress, setSubAddress] = useState('Colombo 00400, Western Province');
+  const [mainAddress, setMainAddress] = useState('Locating address...');
+  const [subAddress, setSubAddress] = useState('Please wait...');
   const [isGeocoding, setIsGeocoding] = useState(false);
+
+  // Automatically detect customer's current GPS location on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function initUserLocation() {
+      try {
+        setIsGeocoding(true);
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({});
+          if (isMounted && location && location.coords) {
+            const lat = location.coords.latitude;
+            const lng = location.coords.longitude;
+            setCurrentCoords({ latitude: lat, longitude: lng });
+            const result = await reverseOSMGeocode(lat, lng);
+            if (isMounted && result && result.display_name) {
+              const parts = result.display_name.split(',');
+              setMainAddress(parts.slice(0, 2).join(',').trim());
+              setSubAddress(parts.slice(2, 5).join(',').trim());
+            } else if (isMounted) {
+              setMainAddress(`Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+              setSubAddress('Sri Lanka');
+            }
+          }
+        } else if (isMounted) {
+          setMainAddress('42, Galle Road, Bambalapitiya');
+          setSubAddress('Colombo 00400, Western Province');
+        }
+      } catch (err) {
+        if (isMounted) {
+          setMainAddress('42, Galle Road, Bambalapitiya');
+          setSubAddress('Colombo 00400, Western Province');
+        }
+      } finally {
+        if (isMounted) setIsGeocoding(false);
+      }
+    }
+
+    initUserLocation();
+    return () => { isMounted = false; };
+  }, []);
 
   const handleLocationSelect = async (lat: number, lng: number) => {
     setCurrentCoords({ latitude: lat, longitude: lng });

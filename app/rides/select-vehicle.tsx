@@ -18,7 +18,7 @@ import CustomBottomTabBar from '../../components/CustomBottomTabBar';
 import InteractiveMap from '../../components/InteractiveMap';
 import { cardService } from '../../services/api/card-service';
 import { rideService, NearbyRiderItem } from '../../services/api/ride-service';
-
+import { geocodeAddress } from '../../services/osmService';
 
 interface VehicleOption {
   id: string;
@@ -183,6 +183,50 @@ export default function SelectVehicleScreen() {
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number }>({ lat: pLatNum, lng: pLngNum });
   const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number }>({ lat: dLatNum, lng: dLngNum });
 
+  // Synchronize and geocode pickup & dropoff coordinates whenever search params change
+  useEffect(() => {
+    let isMounted = true;
+    async function syncLocations() {
+      let pLat = pickupLat ? parseFloat(pickupLat) : NaN;
+      let pLng = pickupLng ? parseFloat(pickupLng) : NaN;
+
+      if (isNaN(pLat) || isNaN(pLng)) {
+        if (pickup && pickup.trim()) {
+          const geo = await geocodeAddress(pickup);
+          if (geo) {
+            pLat = geo.latitude;
+            pLng = geo.longitude;
+          }
+        }
+      }
+      if (isNaN(pLat)) pLat = 6.9271;
+      if (isNaN(pLng)) pLng = 79.8612;
+
+      let dLat = dropoffLat ? parseFloat(dropoffLat) : NaN;
+      let dLng = dropoffLng ? parseFloat(dropoffLng) : NaN;
+
+      if (isNaN(dLat) || isNaN(dLng)) {
+        if (dropoff && dropoff.trim()) {
+          const geo = await geocodeAddress(dropoff);
+          if (geo) {
+            dLat = geo.latitude;
+            dLng = geo.longitude;
+          }
+        }
+      }
+      if (isNaN(dLat)) dLat = 6.8413;
+      if (isNaN(dLng)) dLng = 79.9654;
+
+      if (isMounted) {
+        setPickupCoords({ lat: pLat, lng: pLng });
+        setDropoffCoords({ lat: dLat, lng: dLng });
+      }
+    }
+
+    syncLocations();
+    return () => { isMounted = false; };
+  }, [pickup, dropoff, pickupLat, pickupLng, dropoffLat, dropoffLng]);
+
   // Calculate distance in km dynamically from map parameters
   const tripDistanceKm = calculateDistanceKm(
     String(pickupCoords.lat),
@@ -303,7 +347,7 @@ export default function SelectVehicleScreen() {
       latitude: pickupCoords.lat,
       longitude: pickupCoords.lng,
       title: pickup || 'Pickup Location',
-      type: 'pickup',
+      type: 'user',
     },
     {
       id: 'd1',
@@ -356,11 +400,41 @@ export default function SelectVehicleScreen() {
 
         {/* Lower Screen: Bottom-Anchored Vehicle Options & Booking Section */}
         <View style={styles.vehicleOptionsPanel}>
+          {/* Customer Pickup & Destination Route Summary Card */}
+          <View style={styles.routeSummaryCard}>
+            <View style={styles.routeSummaryRow}>
+              <Ionicons name="ellipse" size={10} color="#2563EB" style={{ marginRight: 8, marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.routeLabelText}>PICKUP LOCATION</Text>
+                <Text style={styles.routeAddressText} numberOfLines={1}>
+                  {pickup || 'Pickup Location'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.routeConnectorLine} />
+
+            <View style={styles.routeSummaryRow}>
+              <Ionicons name="location-sharp" size={12} color="#EA580C" style={{ marginRight: 8, marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.routeLabelText}>DESTINATION</Text>
+                <Text style={styles.routeAddressText} numberOfLines={1}>
+                  {dropoff || 'Dropoff Location'}
+                </Text>
+              </View>
+
+              <View style={styles.distanceBadgePill}>
+                <Ionicons name="navigate-circle" size={13} color="#2563EB" style={{ marginRight: 3 }} />
+                <Text style={styles.distanceBadgePillText}>{tripDistanceKm.toFixed(1)} km</Text>
+              </View>
+            </View>
+          </View>
+
           {/* Section Subheader */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <Text style={styles.panelTitle}>Select Vehicle</Text>
             <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B' }}>
-              Est. Distance: {tripDistanceKm.toFixed(1)} km
+              {tripCategory === 'RETURN' ? '🔄 Return Trip' : '➔ One Way'}
             </Text>
           </View>
 
@@ -630,6 +704,51 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 8,
+  },
+  routeSummaryCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  routeSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  routeLabelText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  routeAddressText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  routeConnectorLine: {
+    width: 1,
+    height: 8,
+    backgroundColor: '#CBD5E1',
+    marginLeft: 4,
+    marginVertical: 2,
+  },
+  distanceBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  distanceBadgePillText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#2563EB',
   },
   panelTitle: {
     fontSize: 15,
