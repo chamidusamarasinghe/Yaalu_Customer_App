@@ -13,6 +13,7 @@ LogBox.ignoreLogs([
 ]);
 
 // Top-level error suppression for Chrome Extensions crashing Expo Web
+// Only run on web platform where window APIs are fully available
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   const originalOnError = window.onerror;
   window.onerror = function (message, source, lineno, colno, error) {
